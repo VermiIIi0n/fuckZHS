@@ -66,7 +66,14 @@ class Fucker:
     @cookies.setter
     def cookies(self, cookies: dict):
         self._cookies = requests.utils.cookiejar_from_dict(cookies)
-        self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"] if cookies else None
+        try:
+            self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"] if cookies else None
+            self._cookies.update({"uuid": self.uuid,
+                                f"exitRecod_{self.uuid}": "2"})
+        except Exception as e:
+            print("cookies invalid, if you are using auto login, you probably have to manually login once")
+            logger.exception(e)
+
         logger.debug(f"cookies: {self._cookies}")
 
     def login(self, username: str=None, password: str=None, webdriver_opts: dict=None):
@@ -108,16 +115,12 @@ class Fucker:
                 logger.warning("No cookies found, please login first")
                 return {}
 
-            self._cookies.clear()
             cookies_list = {"SERVERID","CASTGC","CASLOGC","jt-cas"}
+            cache = {}
             for cookie in cookies:
                 if cookie["name"] in cookies_list:
-                    self._cookies[cookie["name"]] = cookie["value"]
-            # now parse uuid from cookies
-            self.uuid = json.loads(unquote(self._cookies["CASLOGC"]))["uuid"]
-            self._cookies.update({"uuid": self.uuid,
-                                f"exitRecod_{self.uuid}": "2"
-                                })
+                    cache[cookie["name"]] = cookie["value"]
+            self.cookies = cache
             logger.debug(f"session cookies: {self.session.cookies}\ncookies: {self._cookies}")
             logger.info("Login successful")
             return self._cookies
