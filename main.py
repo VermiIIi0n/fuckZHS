@@ -21,8 +21,8 @@ else:
 
 logger.setLevel(config.logLevel)
 
-username = config.username if config else ""
-password = config.password if config else ""
+username = config.username
+password = config.password
 
 webdriver_path = config.get("webdriverPath", None)
 webdriver_opts = {}
@@ -39,9 +39,9 @@ fucker.login(username, password)
 # fucker.cookies = {}
 
 # now if you want to fuck a course, use fuckCourse method
-fucker.fuckCourse(course_id="10490467")
+fucker.fuckCourse(course_id="")
 
 # or if you want to fuck a video, you can use fuckVideo method
-# fucker.fuckVideo(course_id="10490467", file_id="8961948")
+# fucker.fuckVideo(course_id="", file_id="")
 
 # check the source code or README to find more info
