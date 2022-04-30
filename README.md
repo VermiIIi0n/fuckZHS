@@ -18,7 +18,9 @@
 * 将 _WebDriver_ 文件路径添加到系统 `PATH` 或配置文件
 
 #### 如何使用
-本块分为 `Login`, `Fxxking`.
+本块分为 `Login`, `Fxxking`.  
+`Login` 使用 _selenium_ 操作浏览器登录来获得 `Cookies`, 若你想自己获取记得给 `cookies` 属性赋值就行， 不一定要调用 `login` 方法  
+`Fxxking` 就是真正开始刷进度了, 现在支持用命令行参数和 `API` 两种方式开干
 
 ###### Login
 配置文件 _config.json_ 中有以下字段:
@@ -35,7 +37,7 @@
 如果非常用地登陆会需要短信验证, 你应该先手动登陆一次, 以让你的所在地列入白名单.  
 _WebDriver_ 地址留空将从系统 `PATH` 中搜索文件.
 
-`API` 指北: _Python3_ 登录样例 (如果你想在单独用该模块的话)
+`API` 指北: _Python3_ 登录样例 (如果你想单独用该模块的话)
 ```Python
 from fucker import Fucker
 fucker = Fucker()
@@ -221,6 +223,7 @@ if (false){
 #### chapter 3: small step, Giant Leap
 要继续解读的话这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的，重复的部分:
 ![level3](./images/level3.png)
+
 怎么说呢, 虽然是很繁琐的一件事, 但看着大批大批代码被删有种莫名的快感, 我当游戏玩了一久.
 
 玩得差不多的时候突然想起来我好像不必把所有代码反混淆, 找到 `MD5` 相关的代码就好啊.  
