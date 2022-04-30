@@ -11,39 +11,51 @@
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
 * _requests_ 库
 * _selenium_ 库
- 1. 兼容 _selenium_ 的浏览器(建议 _Chrome_)
- 2. 浏览器对应的 [_WebDriver_](https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/)
- 3.将 _WebDriver_ 文件路径添加到 `PATH` 或 配置文件
+
+以下内容若不使用 _selenium_ 则可忽略
+* 兼容 _selenium_ 的浏览器(建议 _Chrome_)
+* 浏览器对应的 [_WebDriver_](https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/)
+* 将 _WebDriver_ 文件路径添加到 `PATH` 或 配置文件
 
 #### 如何使用
 本块分为 `Login`, `Fxxking`
 
 ###### Login
-配置文件中有以下字段
+配置文件 _config.json_ 中有以下字段
 ```JSON
 {
   "username": "",
   "password": "",
-  "webdriverPath": null
+  "webdriverPath": null,
+  "logLevel": "INFO"
 }
 ```
-_Python3_  登陆, 如果你想在别处用该模块的话
+用户名与密码填入配置文件即可开启自动登录, 不填写将以交互形式输入缺失信息  
+如果非常用地登陆会需要短信验证, 你应该先手动登陆一次, 以让你的所在地列入白名单.  
+_WebDriver_ 地址留空将从 `PATH` 中搜索文件
+
+然后，例如你想要干 ID 为 `"114514"` 的课程，可以这样做:
+```bash
+cd fuckZHS
+python main.py -c 114514
+```
+什么？不知道课程 ID? 进入课程界面就可以在网址里看到了
+更多选项请使用 `-h` 查看
+
+
+_Python3_ 登录样例, 如果你想在单独用该模块的话
 ```Python
 from fucker import Fucker
 fucker = Fucker()
 fucker.login(username:str, password:str, webdriver_opts:dict)
 # webdriver_opts 是会传入 WebDriver 的额外参数
-# 配置文件中填入的路径参数将以 Key-Value 传入, 可别直接传入
+# 配置文件中填入的路径参数将以 Key-Value 传入, 可别直接传入，因为貌似我传路径参数的用法快被 deprecated 了，故此选项自由度给高点，方便以后修改用法
 
 fucker.cookies = {}
-# 如果你不想使用 Selenium
+# 如果你不想使用 selenium 
 # 也可直接传入符合 requests 库要求的 cookies
-# 该 cookies 会覆盖原有的, 请确保它是完整的智慧树 cookies
-# 因为 uuid 需要从 cookies 中解析
+# 该 cookies 会覆盖原有的, 请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
 ```
-用户名与密码填入即可自动登录, 不填写将以交互形式输入.  
-如果非常用地登陆会需要短信验证, 你应该先手动登陆一次, 以让你的所在地列入白名单.  
-_WebDriver_ 地址留空将从 `PATH` 中搜索文件
 
 ###### Fxxking
 一段伪示例如下
@@ -106,7 +118,7 @@ Params:
 
 包里大部分参数都很直接, 我们照搬便是.  
 `courseId` 我们可以从浏览器链接里得知,  
-`fileId` 每个 chapter 的都不一样, 可以从“https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree” 中获取的JSON 中得到, 不再赘述.
+`fileId` 每个章节的都不一样, 可以从“https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree” 中获取的JSON 中得到, 不再赘述.
 
 剩下只有 `signature` 不明, 不过大概是个防止多次提交的签名罢了, 这群人取名似乎一直不太行.
 
@@ -224,9 +236,9 @@ def sign(p:dict):
 我们也算是**努力**完成作业了
 
 已经1000%了()
-![1000%](./images/1000%.png)
+![1000%](./images/1000.png)
 
-给对如此凌乱的内容还看到最后你一些安慰吧  
+给把如此凌乱的内容看到最后你一些安慰吧  
 祝你学习像 Anya 一样好, 料理如 Yor 一般出色
 ![bonus](./images/bonus.jpg)
-(sauce: pixiv; pid:97128620) 放 GitHub 仓库不能算转载吧?
+(sauce: Pixiv; pid:97128620) 放 GitHub 仓库不能算转载吧?
