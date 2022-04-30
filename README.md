@@ -15,13 +15,13 @@
 以下内容若不使用 _selenium_ 则可忽略
 * 兼容 _selenium_ 的浏览器(建议 _Chrome_)
 * 浏览器对应的 [_WebDriver_](https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/)
-* 将 _WebDriver_ 文件路径添加到 `PATH` 或 配置文件
+* 将 _WebDriver_ 文件路径添加到系统 `PATH` 或配置文件
 
 #### 如何使用
-本块分为 `Login`, `Fxxking`
+本块分为 `Login`, `Fxxking`.
 
 ###### Login
-配置文件 _config.json_ 中有以下字段
+配置文件 _config.json_ 中有以下字段:
 ```JSON
 {
   "username": "",
@@ -30,20 +30,12 @@
   "logLevel": "INFO"
 }
 ```
-用户名与密码填入配置文件即可开启自动登录, 不填写将以交互形式输入缺失信息  
+配置文件如果没有的话会在 _main.py_ 执行时自动创建.  
+用户名与密码填入配置文件即可开启自动登录, 不填写将以交互形式输入缺失信息.  
 如果非常用地登陆会需要短信验证, 你应该先手动登陆一次, 以让你的所在地列入白名单.  
-_WebDriver_ 地址留空将从 `PATH` 中搜索文件
+_WebDriver_ 地址留空将从系统 `PATH` 中搜索文件.
 
-然后，例如你想要干 ID 为 `"114514"` 的课程，可以这样做:
-```bash
-cd fuckZHS
-python main.py -c 114514
-```
-什么？不知道课程 ID? 进入课程界面就可以在网址里看到了
-更多选项请使用 `-h` 查看
-
-
-_Python3_ 登录样例, 如果你想在单独用该模块的话
+`API` 指北: _Python3_ 登录样例 (如果你想在单独用该模块的话)
 ```Python
 from fucker import Fucker
 fucker = Fucker()
@@ -58,7 +50,18 @@ fucker.cookies = {}
 ```
 
 ###### Fxxking
-一段伪示例如下
+登录之后就可以开干，例如你想要干 ID 为 `"114514"` 的课程，可以这样做:
+```bash
+cd fuckZHS
+python main.py -c 114514
+```
+什么？不知道课程 ID? 进入课程界面就可以在网址里看到了.
+更多选项请使用 `-h` 查看.
+
+运行结果如下:
+![运行示例](./images/running.png)
+
+`API` 指北: 一段伪示例如下
 ```Python
 from fucker import Fucker
 
@@ -66,7 +69,7 @@ fucker = Fucker()
 # 或者更进阶一些
 fucker = Fucker(speed=1.25, end_thre=0.91)
 # 以上控制播放速度以及终止临界值
-# 播放速度正常最高也就1.25, 但似乎更高的服务器也认
+# 播放速度正常最高也就1.25, 但似乎更高的服务器也接受
 # 不过怕暴露就谨慎些吧
 # 智慧树把高于一定百分比的进度视为完成, 0.91 保险一点
 # 以上俩参数仅对视频有效, 其他的内容就只有进度0或1
@@ -74,9 +77,7 @@ fucker.login()
 fucker.fuckCourse(courseId) # 把整个课程都干了
 fucker.fuckVideo(courseId, fileId) # 只干一个视频
 ```
-测试运行结果如下:
 
-![运行示例](./images/running.png)
 指北就这些啦, 代码很少可以自己看.
 
 
@@ -120,7 +121,7 @@ Params:
 `courseId` 我们可以从浏览器链接里得知,  
 `fileId` 每个章节的都不一样, 可以从“https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree” 中获取的JSON 中得到, 不再赘述.
 
-剩下只有 `signature` 不明, 不过大概是个防止多次提交的签名罢了, 这群人取名似乎一直不太行.
+剩下只有 `signature` 不明, 不过大概是个防止多次提交的随机字符串罢了, 这群人取名似乎一直不太行.
 
 然后一试
 ```JSON
@@ -132,17 +133,18 @@ Params:
 ```
 ???  
 为何就返回个 `null`, 为了解决这个问题我快把浏览器内核用 _Python_ 实现了, 一直以为就是个 `Headers` 或者 `Cookie☆` 的问题.  
-结果最后才发现是 `Params`, 而且就是那个该死的 `signature` 出了问题.  
+结果最后才发现在 `Params`, 而且就是里面那个该死的 `signature` 出了问题.  
 这次他们取对名字了, 这真是个签名, 必须和其他内容一套才能有 `rt`.  
-想要自己生成这个签名就只能从前端代码里找 Salt 和原数据
+想要自己生成这个 `MD5` 签名就只能从前端代码里找 Salt 等数据.
 
 没办法, 开始人生第一次反混淆 JS 吧...
 
-#### chapter 1: Everything Begins In Chaos
+#### chapter 1: At Beginning, It's Just Chaos
 开头这个站点名就是万恶之源了, 话说为什么叫“加密”, 只是混淆而已, 和加密相差太远了, 只能说连名字都取的很 Obfuscated.
 
 首先得把这些诡异变量重命名一下, 在[_这个站点_](https://deobfuscate.io)可以初步反混淆, 去掉一些简单的函数 wrapping 并重命名变量, 新变量当然是随机的, 只是好读一些.
 
+#### chapter 2: Let There = Light
 初步反混淆后
 ![level0](./images/level0.png)
 这下好多了, 可以看到开头有一行超大的列表, 看起来是 Base64, 解码后是乱码, 是被加密了.
@@ -192,13 +194,36 @@ _JavaScript_ 原版其实在 Base64 解码后还有个诡异的手动 URLEncode 
 
 解密之后常量已经可以看到了, 但其中仍有很多垃圾信息.  
 其中有个模式, 就是混淆版本会在一个 `Object` 内包装一堆简单的函数, 比如加减和比较, 然后取个无意义的名字. 结合那一堆无意义的变量来做比较判断, 以此来表示 `Boolean` 值, 只要搞清这个可以去掉很多无意义的判断语句
+```JavaScript
+var Wtf = {
+       RvuT: function (dyo, bie){
+       return dyo === bie;
+       },
+       oPhT: function(Jely, Inp, Stb){
+       return Jely(Inp, Stb)
+       },
+       stEbU: "d0gky", RlVDj: "rk8Eb"
+    }
+if (Wtf.oPhT(Wtf.RvuT,Wtf.stEbU,Wtf.RlVDj){
+    console.log("WTF");
+    }
+    
+//以上这一大坨， 也就等价于
+if (false){
+  console.log("who cares what I've logged");
+  }
+  
+//也就等价于
+// do fucking nothing but consuming your CPU, storage, network bandwidth and god damn time
+  
+```
 
 #### chapter 3: small step, Giant Leap
-这些乱码的函数名字太难读了, 以功能来重新命名吧
+要继续解读的话这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的，重复的部分:
 ![level3](./images/level3.png)
-怎么说呢, 虽然是很繁琐的一件事, 但看着大批大批代码被删有种莫名的快感, 我当游戏玩了一久
+怎么说呢, 虽然是很繁琐的一件事, 但看着大批大批代码被删有种莫名的快感, 我当游戏玩了一久.
 
-玩得差不多的时候突然想起来我好像不必把所有代码反混淆, 找到 MD5HASH 的代码就好啊.  
+玩得差不多的时候突然想起来我好像不必把所有代码反混淆, 找到 `MD5` 相关的代码就好啊.  
 现在代码也只有一千多行了, 挺好找的才是.  
 随手一翻发现
 ```JavaScript
@@ -215,7 +240,7 @@ function jobany(params) {
       return kenshin.APPLY($md5, lennora);
     }
 ```
-诶嘿, 改函数名有效果了, 是盐! 它加了盐!
+诶嘿, 改函数名有效果了, 是盐! 它加了盐! (顺带特想吐槽下这个自动生成的对象名 `kenshin`，什么艾莉丝)
 
 盐(bushi):
 ![Shio](./images/Shiochan.webp)
@@ -223,6 +248,7 @@ function jobany(params) {
 有了这个我们可以自己签名了, 没想到人都这么大了还靠在自己作业上签名来骗人()
 ```Python
 from hashlib import md5
+from utils import ObjDict # 这是一个我从 dict 继承后魔改的玩意儿，可以用 JavaScript 风格访问 dict
 
 SALT = "o6xpt3b#Qy$Z"
 
