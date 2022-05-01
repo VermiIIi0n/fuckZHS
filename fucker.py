@@ -216,7 +216,36 @@ class Fucker:
                         f"Failed to fuck video {file_id} of course {course_id}, \n"+
                         f"error: {info.status}, message: {info.message}, rt: {info.rt}")
                 prev_time = info.rt
+        print('\r', end='')
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
+    
+    def _traverse(self,course_id, node: ObjDict, depth=0):
+        depth += 1
+        prefix = "    |" * depth
+        if node.childList: # if childList is not None, then it's a chapter
+            chapter = node
+            logger.debug(f"Fucking chapter {chapter.id}")
+            print(f"{prefix}\n{prefix}__Fucking chapter {chapter.name}")
+            for child in chapter.childList:
+                self._traverse(course_id, child, depth=depth)
+        else: # if childList is None, then it's a file
+            file = node
+            file.studyTime = file.studyTime or 0 # sometimes it's None
+            if file.studyTime >= file.totalTime*self.end_thre:
+                logger.debug(f"Skipped file {file.id}")
+                return
+            logger.debug(f"Fucking file {file.id}, data type: {file.dataType}")
+            print(f"{prefix}__Fucking {file.name}"[:81])
+            try:
+                match file.dataType:
+                    case 3:
+                        self.fuckVideo(course_id, file.id, file.studyTime)
+                    case _:
+                        self.fuckFile(course_id, file.id)
+            except Exception as e:
+                logger.error(f"Failed to fuck file {file.id} of course {course_id}")
+                logger.exception(e)
+                print(f"{prefix}##Failed to fuck file {file.name}"[:81])
 
     def fuckCourse(self, course_id):
         if not self._cookies:
@@ -230,28 +259,10 @@ class Fucker:
             "_": int(time.time()*1000)
         }
         r = self.session.get(url, params=params, cookies=self._cookies, proxies=self.proxies, timeout=10)
-        chapters = ObjDict(r.json()).rt
-        logger.info(f"Fucking course {course_id} (total chapters: {len(chapters)})")
-        print(f"Fucking course {course_id} (total chapters: {len(chapters)})")
-        for chapter in chapters:
-            logger.debug(f"Fucking chapter {chapter.id}")
-            print(f"    |\n\r    |__Fucking chapter {chapter.name}")
-            for file in chapter.childList:
-                file.studyTime = file.studyTime or 0 # sometimes it's None
-                if file.studyTime >= file.totalTime*self.end_thre:
-                    logger.debug(f"Skipped file {file.id}")
-                    continue
-                logger.debug(f"Fucking file {file.id}, data type: {file.dataType}")
-                print(f"\r    |    |__Fucking {file.name}"[:81])
-                try:
-                    match file.dataType:
-                        case 3:
-                            self.fuckVideo(course_id, file.id, file.studyTime)
-                        case _:
-                            self.fuckFile(course_id, file.id)
-                except Exception as e:
-                    logger.error(f"Failed to fuck file {file.id} of course {course_id}")
-                    logger.exception(e)
-                    print(f"\r    |    ##Failed to fuck file {file.name}"[:81])
+        root = ObjDict(r.json()).rt
+        logger.info(f"Fucking course {course_id} (total chapters: {len(root)})")
+        print(f"Fucking course {course_id} (total chapters: {len(root)})")
+        for chapter in root:
+            self._traverse(course_id, chapter)
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
         print(f"    |\n    |__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
