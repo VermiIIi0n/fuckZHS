@@ -22,6 +22,29 @@ def getRealPath(path: str):
         return os.path.realpath(path)
     return os.path.join(getDir(), path)
 
+def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
+                      length = (os.get_terminal_size().columns-1), fill = '#'):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    prefix = f"{prefix} |"
+    suffix = f"| {percent}% {suffix}"
+    bar_len = length - len(prefix) - len(suffix)
+    filled_len = int(bar_len * iteration // total)
+    bar = fill * filled_len + ' ' * (bar_len - filled_len)
+    print(f"\r{prefix}{bar}{suffix}", end = '')
+    if iteration >= total:
+        print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
+
 class ObjDict(dict):
     lock = Lock() # for thread safety
     antiloop_map = {} # for loop safety
@@ -101,3 +124,4 @@ class ObjDict(dict):
         return repr(self.__dict__)
     def __str__(self):
         return str(self.__dict__)
+

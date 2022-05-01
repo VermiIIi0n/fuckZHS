@@ -1,6 +1,7 @@
 import urllib
 from urllib.parse import unquote_plus as unquote
 import json
+import os
 import re
 import time
 import copy
@@ -11,8 +12,9 @@ from logger import logger
 import selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from utils import ObjDict
+from utils import ObjDict, progressBar
 from sign import sign
+from random import randint
 
 class Fucker:
     def __init__(self, cookies: dict = None,
@@ -189,8 +191,6 @@ class Fucker:
         start_date = int(time.time()*1000)
 
         while (prev_time+watched_time) <= total_time*self.end_thre:
-            print(f"\rcurrent: {watched_time+prev_time:.1f}s/{total_time}s    "+
-                  f"{(prev_time+watched_time)/total_time*100:.2f}%", end="")
             time.sleep(1)
             watched_time += self.speed
             if (prev_time+watched_time) >= total_time*self.end_thre or \
@@ -216,36 +216,44 @@ class Fucker:
                         f"Failed to fuck video {file_id} of course {course_id}, \n"+
                         f"error: {info.status}, message: {info.message}, rt: {info.rt}")
                 prev_time = info.rt
-        print('\r', end='')
+            progressBar(watched_time+prev_time, total_time*self.end_thre,
+                        prefix=f"watching {file_id}", suffix="of threshold")
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
     
     def _traverse(self,course_id, node: ObjDict, depth=0):
         depth += 1
+        w_lim = os.get_terminal_size().columns-1
         prefix = "    |" * depth
         if node.childList: # if childList is not None, then it's a chapter
             chapter = node
             logger.debug(f"Fucking chapter {chapter.id}")
-            print(f"{prefix}\n{prefix}__Fucking chapter {chapter.name}")
+            print(prefix) # separate chapters
+            print(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
             for child in chapter.childList:
                 self._traverse(course_id, child, depth=depth)
         else: # if childList is None, then it's a file
             file = node
             file.studyTime = file.studyTime or 0 # sometimes it's None
+            logger.debug(f"Fucking file {file.id}, data type: {file.dataType}")
+            print(f"{prefix}__Fucking {file.name}"[:w_lim])
+
             if file.studyTime >= file.totalTime*self.end_thre:
                 logger.debug(f"Skipped file {file.id}")
                 return
-            logger.debug(f"Fucking file {file.id}, data type: {file.dataType}")
-            print(f"{prefix}__Fucking {file.name}"[:81])
+
             try:
+                time.sleep(randint(1024,2048)/1024) # more human-like
                 match file.dataType:
                     case 3:
                         self.fuckVideo(course_id, file.id, file.studyTime)
+                    case None:
+                        print(f"{prefix}##Unsupported file type, may be a quiz"[:w_lim])
                     case _:
                         self.fuckFile(course_id, file.id)
             except Exception as e:
                 logger.error(f"Failed to fuck file {file.id} of course {course_id}")
                 logger.exception(e)
-                print(f"{prefix}##Failed to fuck file {file.name}"[:81])
+                print(f"{prefix}##Failed to fuck file {file.name}"[:w_lim])
 
     def fuckCourse(self, course_id):
         if not self._cookies:
