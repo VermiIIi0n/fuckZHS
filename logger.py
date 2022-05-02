@@ -11,7 +11,7 @@ class MonoLogger:
         MonoLogger._logger_map.update({name: self})
         self._name = name
         if not path:
-            path = os.path.join(os.getcwd(), name + "-logs")
+            path = os.path.join(os.getcwd(), name + ".logs")
         self.path = path
         if not os.path.exists(self.path):
             os.mkdir(self.path)

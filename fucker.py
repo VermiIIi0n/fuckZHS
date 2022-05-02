@@ -18,7 +18,7 @@ from random import randint
 
 class Fucker:
     def __init__(self, cookies: dict = None,
-                 user_agent: str = None,
+                 headers: dict = None,
                  proxies: dict = None,
                  use_system_proxies: bool = True,
                  request_Session: requests.Session = None,
@@ -31,22 +31,17 @@ class Fucker:
         self._cookies = None
         self.uuid = None
         self.cookies = cookies or {}
-
-        self.user_agent = user_agent or \
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"
-        logger.debug(f'user_agent: {self.user_agent}')
-
         self.proxies = proxies or (urllib.request.getproxies() if use_system_proxies else {})
-        logger.debug(f'proxies: {self.proxies}')
-
-        self.headers = {
+        self.headers = headers or {
             "Accept": "*/*",
-            "User-Agent": self.user_agent,
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36",
             "Origin": "https://hike.zhihuishu.com",
             "Referer": "https://hike.zhihuishu.com/",
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-GB,en;q=0.9"
         }
+        self.webdriver_opts = webdriver_opts or {}
+
         retry = Retry(total=5,
                       backoff_factor=0.1,
                       raise_on_status=True,
@@ -54,7 +49,9 @@ class Fucker:
         self.session = request_Session or requests.Session()
         self.session.mount('http://', HTTPAdapter(max_retries=retry))
         self.session.mount('https://', HTTPAdapter(max_retries=retry))
-        self.webdriver_opts = webdriver_opts or {}
+
+        logger.debug(f'proxies: {self.proxies}')
+        logger.debug(f'headers: {self.headers}')
         logger.debug(f'webdriver_opts: {self.webdriver_opts}')
 
         self.speed = abs(speed or 1.25)             # video play speed
@@ -68,13 +65,14 @@ class Fucker:
     @cookies.setter
     def cookies(self, cookies: dict):
         self._cookies = requests.utils.cookiejar_from_dict(cookies)
-        try:
-            self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"] if cookies else None
-            self._cookies.update({"uuid": self.uuid,
-                                f"exitRecod_{self.uuid}": "2"})
-        except Exception as e:
-            print("cookies invalid, if you are using auto login, you probably have to manually login once")
-            logger.exception(e)
+        if cookies:
+            try:
+                self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"]
+                self._cookies.update({"uuid": self.uuid,
+                                    f"exitRecod_{self.uuid}": "2"})
+            except Exception as e:
+                print("cookies invalid, if you are using auto login, you probably have to manually login once")
+                logger.exception(e)
 
         logger.debug(f"cookies: {self._cookies}")
 
@@ -242,14 +240,15 @@ class Fucker:
                 return
 
             try:
-                time.sleep(randint(1024,2048)/1024) # more human-like
                 match file.dataType:
                     case 3:
                         self.fuckVideo(course_id, file.id, file.studyTime)
+                        time.sleep(randint(1024,2048)/1024) # more human-like
                     case None:
                         print(f"{prefix}##Unsupported file type, may be a quiz"[:w_lim])
                     case _:
                         self.fuckFile(course_id, file.id)
+                        time.sleep(randint(2048,4096)/1024) # more human-like
             except Exception as e:
                 logger.error(f"Failed to fuck file {file.id} of course {course_id}")
                 logger.exception(e)
@@ -268,8 +267,8 @@ class Fucker:
         }
         r = self.session.get(url, params=params, cookies=self._cookies, proxies=self.proxies, timeout=10)
         root = ObjDict(r.json()).rt
-        logger.info(f"Fucking course {course_id} (total chapters: {len(root)})")
-        print(f"Fucking course {course_id} (total chapters: {len(root)})")
+        logger.info(f"Fucking course {course_id} (total root chapters: {len(root)})")
+        print(f"Fucking course {course_id} (total root chapters: {len(root)})")
         for chapter in root:
             self._traverse(course_id, chapter)
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")

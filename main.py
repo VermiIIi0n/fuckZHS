@@ -41,7 +41,7 @@ webdriver_path = args.webdriver or config.webdriverPath
 webdriver_opts = {}
 if webdriver_path:
     webdriver_path = getRealPath(webdriver_path)
-    webdriver_opts.update({"executable_path": webdriver_path})
+    webdriver_opts.update({"executable_path": webdriver_path}) # deprecated warning, I didn't bother to fix it
 
 fucker = Fucker(webdriver_opts=webdriver_opts, speed=args.speed, end_thre=args.threshold) # create an instance, now we are talking... or fucking
 

@@ -3,15 +3,15 @@ table = ['Ym/DsFLDti4fwqJeCcKK', 'GsKLw4/Dj2APa1EiwrnCunzCucOQwrULQMO2Oww8FCI=',
 from urllib.parse import unquote_plus as unquote
 from base64 import b64decode as b64dec
 
-def decrypt(index:str, salt:str):
+def decrypt(index:str, key:str):
     index = int(index, 16)
     encrypted = b64dec(table[index])
-    salt = salt.encode()
+    key = key.encode()
 
     mod_sum = 0
     ar = list(range(256))
     for i in range(256):
-        mod_sum = (mod_sum + ar[i] + salt[i % len(salt)]) % 256
+        mod_sum = (mod_sum + ar[i] + key[i % len(key)]) % 256
         ar[i], ar[mod_sum] = ar[mod_sum], ar[i]
     mod_sum = 0
     n = 0
