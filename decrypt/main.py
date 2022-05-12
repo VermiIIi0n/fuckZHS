@@ -1,26 +1,35 @@
 import re
-from decrypt import decrypt
+#from decrypt_hike import decrypt
+from decrypt_api import decrypt
 
-func_name = "jaira"
-
-with open("./level1.js") as f:
+with open("./level0.js") as f:
     content = f.read()
 
-func_re = re.compile(f"({func_name}\\( *[\"\'].*?[\"\'], *[\"\'].*?[\"\'] *\\))")
+def escape(s:str):
+    return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n")
+
 arg_re = re.compile("[\"\'](.*?)[\"\']")
 
-def escape(s:str):
-    return s.replace("\\", "\\\\").replace("\"", "\\\"")
-
 cnt = 0
-for func in func_re.findall(content):
-    cnt += 1
-    arg1, arg2 = arg_re.findall(func)
-    content = content.replace(func, ' "'+escape(decrypt(arg1, arg2))+'" ')
-print("total", cnt)
+## dealing with hike's obfuscation
+#func_name = "jaira"
+#func_re = re.compile(f"({func_name}\\( *[\"\'].*?[\"\'], *[\"\'].*?[\"\'] *\\))")
+# for call in func_re.findall(content):
+#     cnt += 1
+#     arg1, arg2 = arg_re.findall(call)
+#     content = content.replace(call, ' "'+escape(decrypt(arg1, arg2))+'" ')
 
+# dealing with studyservice-api's obfuscation
+for func in re.findall("([a-zA-Z0-9_]+?)\\(\"0x[0-9a-f]+?\"\\)", content):
+    for call in re.findall(f"(?<![a-zA-Z0-9_])({func}\\( *[\"\'].*?[\"\'] *\\))", content):
+        index = arg_re.search(call).group(1)
+        print(func, index)
+        content = content.replace(call, ' "'+escape(decrypt(index))+'" ')
+        cnt += 1
 
-with open("./level2.js", "w") as f:
+print("total: ", cnt)
+
+with open("./level1.js", "w") as f:
     f.write(content)
 
 

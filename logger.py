@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
+from utils import getRealPath
 from multiprocessing import Lock
 
 class MonoLogger:
@@ -17,11 +18,11 @@ class MonoLogger:
             os.mkdir(self.path)
         elif not os.path.isdir(self.path):
             raise ValueError("log path should be a directory")
-        self._debug = logging.getLogger(self.name + "debug")
-        self._info = logging.getLogger(self.name + "info")
-        self._warning = logging.getLogger(self.name + "warning")
-        self._error = logging.getLogger(self.name + "error")
-        self._critical = logging.getLogger(self.name + "critical")
+        self._debug = logging.getLogger(self.name + "-debug")
+        self._info = logging.getLogger(self.name + "-info")
+        self._warning = logging.getLogger(self.name + "-warning")
+        self._error = logging.getLogger(self.name + "-error")
+        self._critical = logging.getLogger(self.name + "-critical")
         self.setLevel(level)
 
         self._console_hdlr = logging.StreamHandler()
@@ -47,6 +48,12 @@ class MonoLogger:
     @property
     def name(self):
         return self._name
+    @property
+    def path(self):
+        return self._path
+    @path.setter
+    def path(self, path: str):
+        self._path = getRealPath(path)
     @property
     def debug(self):
         return self._debug.debug

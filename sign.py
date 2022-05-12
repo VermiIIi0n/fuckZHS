@@ -1,5 +1,5 @@
 from hashlib import md5
-from utils import ObjDict
+from ObjDict import ObjDict
 
 SALT = "o6xpt3b#Qy$Z"
 

@@ -4,9 +4,16 @@
 这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程, 为你节约有限的生命.
 ***
 #### WHY?
-自从智慧树的播放页面用了个窒息的 _JavaScript_ 混淆之后, 各种前端的脚本都没法用了.  
+自从智慧树的翻转课(hike开头的域名)播放页面用了个窒息的 _JavaScript_ 混淆之后, 各种前端的脚本都没法用了.  
 因为它会检查 DevTools 是否打开, 如果开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
-于是我打算直接抄家, 入它后端(*****), 所以便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)
+于是我打算直接抄家, 入它后端(*), 所以便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
+经 issues 才发现智慧树有两套 `API`, hike(翻转课) 与 studyservice-api(知到) 这俩版本, 差别巨大...所以代码量增长超乎意料, 几百行全塞一个类里去了, 别太在意.
+***
+#### 重要通知
+更新2.0版, 有以下重要改变
+1. 新增知到API(studyservice-api)的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
+2. 不再需要 _selenium_ 来登陆, 使用 _selenium_ 的版本已移入其他分支, 后续应该很少更新了
+3. 新增依赖 _pycryptodome_
 ***
 
 #### 准备工作
@@ -14,53 +21,44 @@
 你需要准备以下东西
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
 * _requests_ 
-* _selenium_ 
-
-以下内容若不使用 _selenium_ 则可忽略 (***不建议***)
-* 兼容 _selenium_ 的浏览器(建议 _Chrome_)
-* 浏览器对应的 [_WebDriver_](https://www.selenium.dev/documentation/webdriver/getting_started/install_drivers/)
-* 将 _WebDriver_ 文件路径添加到系统 `PATH` 或配置文件
+* _pycryptodome_ 或其等价替代
 ***
 #### 如何使用
 
 本块分为
 
-1. `Login`: 使用 _selenium_ 操作浏览器登入来获得 `Cookies`, 若你想自己获取记得给你的 `Fucker` 实例的 `cookies` 属性赋值就行， 不一定要调用其 `login` 方法
+1. `Login`: 为了获取 `Cookies`
 
-2. `Fxxking`: 就是真正开始刷进度了, 现在支持用命令行参数和 `API` 两种方式开干
+2. `Fxxking`: 真正开始刷进度, 现在支持用命令行参数和 `API` 两种方式开干
 
 ##### Login
+如果你能自己得到 `Cookies` 就可以略过, 直接给 `Fucker` 实例的 `cookies` 属性赋值就行
 ###### 常规方式指北:  
 配置文件 _config.json_ 中有以下字段:
 ```JSON
 {
   "username": "",
   "password": "",
-  "webdriverPath": null,
+  "proxies": {},
   "logLevel": "INFO"
 }
 ```
-*_配置文件如果没有的话会在 _main.py_ 执行时自动创建._  
-_用户名与密码填入配置文件即可开启自动登入, 不填写将以交互形式输入缺失信息._  
-_如果非常用地登入会需要短信验证, 你应该先手动登入一次, 以让你的所在地列入白名单._  
-_WebDriver 路径留空将从系统_ `PATH` _中搜索文件._
+填入账号密码即可自动登录, 否则会需要交互输入缺失信息  
+*_配置文件如果没有的话会在 main.py 执行时自动创建._   
+** _如果非常用地登入会需要短信验证, 你应该先手动登入一次, 以让你的所在地列入白名单._  
 ***
 ###### `API` 指北:  
 _Python3_ 登入样例 (如果你想单独用该模块的话)
 ```Python
 from fucker import Fucker
 fucker = Fucker()
-fucker.login(username:str, password:str, webdriver_opts:dict)
-# webdriver_opts 是会传入 WebDriver 的额外参数
-# 配置文件中填入的路径参数将以 Key-Value 传入, 可别直接传入. 还有貌似我传路径参数的用法已被 deprecated 了，故此选项自由度给高点，方便以后修改用法
-# 若你要问我为什么不更新用法? 那我问你为什么不把路径加进 PATH 里? 还不都是懒
+fucker.login(username:str, password:str)
 
 fucker.cookies = {}
-# 如果你不想使用 selenium 
+# 如果你不想使用 login
 # 也可直接传入符合 requests 库要求的 cookies
 # 该 cookies 会覆盖原有的, 请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
 ```
-***
 ***
 ##### Fxxking
 ###### 常规方式指北:  
@@ -68,12 +66,15 @@ fucker.cookies = {}
 ```bash
 cd fuckZHS
 python main.py -c 114514
-```
-又比如你想只干某几个视频, 那你可以使用 `-v` 传入视频 ID
-```bash
+# 又或者可以限制学习25分钟, 顺带加个代理?
+python main.py -c 114514 -l 25 --proxy http://127.0.0.1:2333
+# 遇到问题想开 debug 模式?
+python main.py -吃114514 -d
+# 又比如你想只干某几个视频, 那你可以使用 -v 传入视频 ID
 python main.py -c 114514 -v 4060 9891
 ```
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
+课程 ID 为 `courseId` 或 `recruitAndCourseId` 参数, 如果为后者, 视频 ID 将被无视.  
 更多选项请使用 `-h` 查看.
 
 运行结果如下:
@@ -96,6 +97,16 @@ fucker.login()
 fucker.fuckCourse(courseId) # 把整个课程都干了
 fucker.fuckVideo(courseId, fileId) # 只干一个视频
 ```
+#### Fucker 结构
+![structure](./images/struct.png)
+#### 常见问题
+* 登陆失败
+  * 检查你的账号密码是否有误
+  * 先用浏览器登陆一次看看, 可能你的 IP 地址被认为是异地了, 需要短信验证
+* 需要滑块验证 (触发原因不明)
+  * 浏览器登陆后手动过一次验证
+* 不明系统故障
+  * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
 
 指北就这些啦, 代码很少可以自己看.
 ***
@@ -103,8 +114,10 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 这一段算是授之以渔吧, 毕竟网站以后更新可能会改内容, 我又没时间更新, 就先把思路写在这. 但要注意, 下文提到的混淆肯定引入了随机量, 不可完全照搬该思路.  
 过程中用到的文件样本大多都在 _decrypt_ 目录下压缩档里.
 
+*_以下内容仅针对翻转课的 `API` (hike开头的域名)_
+
 #### chapter 0: Too Young Too Naive
-本以为从后端入手会很轻松, 目前绝大部分(事实上我看到的全是)的脚本是在前端实现刷智慧树自动化, 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后(除了登陆部分, 因为似乎有人机验证), 甩开前端, 可以做到不变应万变...吧?
+本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付翻转课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
 
 总之先捉个包看看前端怎么和服务器交流, 没想到一开浏览器开发者模式就遇到了问题.  
 一旦监测到 DevTools, 网页界面就立即停止响应.  
@@ -167,7 +180,7 @@ _好家伙《乱码1/2》_
 #### chapter 2: Let There = Light
 初步反混淆后
 ![level0](./images/level0.png)
-这下好多了, 我们可以看**不**到开头有一行超大的列表(太长了就只截了前几个), 不过它大概有 1.4k 个**字符串**,  
+这下好多了, 我们可以看 ***不*** 到开头有一行超大的列表(太长了就只截了前几个), 不过它大概有 1.4k 个**字符串**,  
 看起来是 Base64, 解码后是乱码, 是被加密了(真·加密).
 
 再观察一下可以发现一个函数出现的次数很多:
@@ -179,15 +192,15 @@ _好家伙《乱码1/2》_
 
 总之反混淆出来是这样一个简单的解密程式, 用 _Python_ 重新实现了:
 ```Python
-def decrypt(index:str, salt:str): # 这个应该不能叫 salt, 但是管他了, 懒得改
+def decrypt(index:str, key:str):
     index = int(index, 16)
     encrypted = b64dec(table[index])
-    salt = salt.encode()
+    key = key.encode()
 
     mod_sum = 0
     ar = list(range(256))
     for i in range(256):
-        mod_sum = (mod_sum + ar[i] + salt[i % len(salt)]) % 256
+        mod_sum = (mod_sum + ar[i] + key[i % len(key)]) % 256
         ar[i], ar[mod_sum] = ar[mod_sum], ar[i]
     mod_sum = 0
     n = 0
@@ -286,7 +299,7 @@ def sign(p:dict):
 
 我们也算是**努力**的**靠自己**完成作业了
 
-![1000%](./images/1000.png)
+![1000%](./images/1000.png)  
 ~~_已经1000%了()_~~  
 
 给把如此凌乱的内容看到最后你一些安慰吧  
