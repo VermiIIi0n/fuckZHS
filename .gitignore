@@ -1,6 +1,6 @@
 **/NoUpload
 **/logs
-*.json
+config.json
 .DS_Store
 
 # Byte-compiled / optimized / DLL files
