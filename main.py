@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import argparse
 import requests
@@ -40,8 +41,13 @@ logger.setLevel("DEBUG" if args.debug else config.logLevel)
 username = args.username or config.username
 password = args.password or config.password
 proxies = config.proxies
-if args.proxy:
-    match args.proxy.split("://")[0].lower():
+
+if args.proxy: # parse proxy
+    scheme = re.search(r"^(\w+)://", args.proxy.strip())
+    if scheme is None:
+        raise ValueError("Invalid proxy, can't parse scheme")
+    scheme = scheme.group(1).lower()
+    match scheme:
         case "http"|"https":
             proxies["http"] = args.proxy
             proxies["https"] = args.proxy
@@ -50,14 +56,14 @@ if args.proxy:
         case "socks5":
             proxies["socks5"] = args.proxy
         case _:
-            raise ValueError("Unsupported proxy type or invalid proxy URL")
+            raise ValueError("Unsupported proxy type")
 
 # check update
 with open(getRealPath("meta.json"), "r") as f:
     try:
         j = ObjDict(json.load(f))
         url = f"https://raw.githubusercontent.com/VermiIIi0n/fuckZHS/{j.branch}/meta.json"
-        r = ObjDict(requests.get(url).json())
+        r = ObjDict(requests.get(url, proxies=proxies, timeout=5).json())
         current = j.version
         latest = r.version
         if versionCmp(current, latest) < 0:
@@ -68,13 +74,14 @@ with open(getRealPath("meta.json"), "r") as f:
     except Exception:
         pass
 
-
-fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit or 0) # create an instance, now we are talking... or fucking
+# create an instance, now we are talking... or fucking
+fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit or 0)
 
 # first you need to login to get cookies
 fucker.login(username, password)
-# if you cannot use selenium, you can add cookies manually by setting cookies property of Fucker
-# notice that cookies of zhihuishu.com expires if you login again in other browser session
+
+# you can add cookies manually by setting cookies property of a Fucker instance
+# notice that cookies of zhihuishu.com expires if you login again in somewhere else
 # fucker.cookies = {}
 
 # auto detect mode

@@ -1,16 +1,16 @@
 from zd_utils import Cipher, getEv, HOME_KEY, VIDEO_KEY, QA_KEY
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
-from random import randint, random
 from utils import progressBar, HMS
+from random import randint, random
 from collections import deque
 from threading import Thread
 from base64 import b64encode
 from getpass import getpass
 from ObjDict import ObjDict
 from logger import logger
-from lxml import html
 from sign import sign
+from lxml import html
 import requests
 import urllib
 import time
@@ -39,7 +39,7 @@ class Fucker:
         * `speed`: float, optional, video playback speed
         * `end_thre`: float, optional, threshold to stop the fucker, overloaded when there are questions left unanswered
         """
-        logger.debug(f"created a Fucker {id(self)}")
+        logger.debug(f"created a Fucker {id(self)}, limit: {limit}, speed: {speed}, end_thre: {end_thre}")
 
         self.uuid = None # actually it's not a uuid, but a random string
         self.cookies = cookies or {}
@@ -56,7 +56,7 @@ class Fucker:
             "Accept-Language": "en-GB,en;q=0.9"
         }
         retry = Retry(total=5,
-                      backoff_factor=0.1,
+                      backoff_factor=0.1, 
                       raise_on_status=True,
                       status_forcelist=[ 500, 502, 503, 504])
         self.session = requests.Session()
@@ -70,7 +70,7 @@ class Fucker:
         self.total_studied_time = 0                # in seconds, fucking will stop when it reaches the limit
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
         self.end_thre = min(end_thre or 0.91, 1.0) # video play end threshold, above this will be considered as finished
-        self.prefix = "    |"                      # prefix for tree view
+        self.prefix = "  |"                        # prefix for tree view
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self):
@@ -177,13 +177,13 @@ class Fucker:
         last_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryUserRecruitIdLastVideoId"
 
         data = {"recruitAndCourseId": RAC_id}
-        # login
+        # cross sites login
         params = {"fromurl": f"https://studyh5.zhihuishu.com/videoStudy.html#/studyVideo?recruitAndCourseId={RAC_id}"}
         self.session.get(login_url, params=params, proxies=self.proxies)
 
         # get course info, including schoolId, recruitId, course name, etc
         course = self._apiQuery(course_url, data).data
-        school_id = course.schoolId
+        school_id = course.schoolId  # not used
         recruit_id = course.recruitId
         logger.info(f"course: {course.courseInfo.name}")
 
@@ -206,7 +206,7 @@ class Fucker:
         print(f"Fucking course {course.courseInfo.name} "+
               f"(total root chapters: {len(chapters.videoChapterDtos)})")
 
-        # get read before, maybe unneccessary. But hey, it's a POST request
+        # get read-before, maybe unneccessary. BUTT hey, it's a POST request
         self._apiQuery(read_url, data={
             "courseId": course_id,
             "recruitId": recruit_id,
@@ -230,10 +230,10 @@ class Fucker:
         
         # start fucking
         begin_time = time.time() # real world time
-        prefix = self.prefix
+        prefix = self.prefix # prefix for tree-like print
         w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
         for chapter in chapters.videoChapterDtos:
-            print(prefix) # separator
+            print(prefix) # extra line as separator
             print(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
             for lesson in chapter.videoLessons:
                 print(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
@@ -252,8 +252,9 @@ class Fucker:
                         })
                         self._fuckZhidaoVideo(video, state, ctx)
                     except TimeLimitExceeded as e:
-                        logger.info(f"Learning time limit exceeded: {e}")
-                        print("Learning time limit exceeded\n")
+                        logger.info(f"Fucking time limit exceeded: {e}")
+                        print(prefix)
+                        print(f"{prefix}##Fucking time limit exceeded: {e}\n")
                         return
                     except Exception as e:
                         logger.exception(e)
@@ -266,8 +267,7 @@ class Fucker:
         :param ctx: context info, including course id, chapter id, recruit id, 
         """
         if self.limit and self.total_studied_time >= self.limit:
-            print(f"{self.prefix*3}##Fucked enough, stop fucking")
-            raise TimeLimitExceeded()
+            raise TimeLimitExceeded(f"{self.limit//60} minutes")
 
         # urls 
         note_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/prelearningNote"
@@ -287,10 +287,10 @@ class Fucker:
             "ccCourseId": ctx.course_id,
             "chapterId": ctx.chapter_id,
             "isApply": 1,
-            "lessonId": video.lessonId,
-            "lessonVideoId": video.id,
+            "lessonId": video.lessonId, # this.lessonId
+            "lessonVideoId": video.id, # this.smallLessonId
             "recruitId": ctx.recruit_id,
-            "videoId": video.videoId
+            "videoId": video.videoId 
         }
         token_id = self._apiQuery(note_url, data=data).data.studiedLessonDto.id
         token_id = b64encode(str(token_id).encode()).decode()
@@ -331,7 +331,7 @@ class Fucker:
         ##### start main event loop, sort of...
         while played_time < end_time:
             time.sleep(1)
-            self.total_studied_time += 1
+            self.total_studied_time += 1 # for time limit check
             elapsed_time += 1
             played_time += speed
 
@@ -341,8 +341,8 @@ class Fucker:
                 question = questions.popleft()
                 try:
                     question = self._apiQuery(getQ_url, data={
-                        "lessonId": video.lessonId,
-                        "lessonVideoId": video.id,
+                        "lessonId": video.lessonId, # this.lessonId
+                        "lessonVideoId": video.id, # this.smallLessonId
                         "questionIds" : question.questionIds
                     }).data.lessonTestQuestionUseInterfaceDtos[0].testQuestion
                     answer = 2    # answer delay time
@@ -355,14 +355,14 @@ class Fucker:
                     answer = None # unset answer flag
                     report = True # set report flag
                     self._apiQuery(subQ_url, data={
-                        "courseId": ctx.course_id,
-                        "recruitId": ctx.recruit_id,
-                        "testQuestionId": question.questionId,
-                        "isCurrent": '1', # it should be 'isCorrect'...
-                        "lessonId": video.lessonId,
-                        "lessonVideoId": video.id,
-                        "answer": self.answerZhidao(question),
-                        "testType": 0
+                        "courseId": ctx.course_id, # this.courseId,
+                        "recruitId": ctx.recruit_id, # this.recruitId
+                        "testQuestionId": question.questionId, # this.pageList.testQuestion.questionId
+                        "isCurrent": '1', # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
+                        "lessonId": video.lessonId, # this.lessonId
+                        "lessonVideoId": video.id, # this.smallLessonId
+                        "answer": self.answerZhidao(question), # this.answerStu.join(",")
+                        "testType": 0 # always 0
                     })
                 else:
                     played_time -= speed # emulate pause on pop quiz
@@ -376,13 +376,13 @@ class Fucker:
                 # prepare for ev
                 raw_ev = [
                     ctx.recruit_id,
-                    video.lessonId,
-                    video.id,
-                    video.videoId,
-                    ctx.chapter_id,
-                    '0',
-                    int(played_time-last_submit),
-                    int(played_time),
+                    video.lessonId, # this.lessonId
+                    video.id, # this.smallLessonId
+                    video.videoId, # this.videoId
+                    ctx.chapter_id, # this.chapterId
+                    '0', # this.data.studyStatus, always 0
+                    int(played_time-last_submit), # this.playTimes
+                    int(played_time), # this.totalStudyTime
                     HMS(seconds=min(video.videoSec, # more realistic
                                     int(played_time+randint(29,31)))) 
                 ]
@@ -421,7 +421,7 @@ class Fucker:
                 watch_point = "0,1"       # reset watch point
             ### end events
 
-            progressBar(played_time, end_time, length=80, prefix=f"watching {video.name}", suffix="of threshold")
+            progressBar(played_time, end_time, prefix=f"fucking above", suffix="of threshold")
         ##### end main event loop
         time.sleep(random()+1)
 
@@ -478,7 +478,7 @@ class Fucker:
             return
         if self.limit and self.total_studied_time >= self.limit:
                 logger.info(f"Studied time limit reached, video {file_id} skipped")
-                return
+                raise TimeLimitExceeded(f"{self.limit//60} minutes")
 
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
@@ -586,7 +586,7 @@ class Fucker:
                         self.fuckFile(course_id, file.id)
             except TimeLimitExceeded as e:
                 logger.info(f"Time limit exceeded, video {file.id} skipped")
-                print(f"{prefix}##Time limit exceeded, video skipped")
+                print(f"{prefix}##Time limit exceeded: {e}")
             except Exception as e:
                 logger.error(f"Failed to fuck file {file.id} of course {course_id}")
                 logger.exception(e)

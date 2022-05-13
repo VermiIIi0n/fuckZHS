@@ -31,6 +31,7 @@ def versionCmp(v1:str, v2:str):
         dt = int(v1[i]) - int(v2[i])
         if dt:
             return dt
+    return 0 if len(v1) == len(v2) else (v1[-1] if len(v1) > len(v2) else -v2[-1])
 
 
 def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,

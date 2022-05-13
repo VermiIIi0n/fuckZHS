@@ -1,21 +1,20 @@
 ## ZHS Fucker 食用指北
 
 #### WTF?
-这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程, 为你节约有限的生命.
+这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程(翻转课和知到的共享学分课), 为你节约有限的生命.
+ _*起初仅为翻转课而写, 现在也支持知到的共享学分课_
 ***
 #### WHY?
-自从智慧树的翻转课(hike开头的域名)播放页面用了个窒息的 _JavaScript_ 混淆之后, 各种前端的脚本都没法用了.  
+自从智慧树的翻转课("hike"开头的域名)播放页面用了个窒息的 _JavaScript_ 混淆之后, 各种前端的脚本都没法用了.  
 因为它会检查 DevTools 是否打开, 如果开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
 于是我打算直接抄家, 入它后端(*), 所以便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
-经 issues 才发现智慧树有两套 `API`, hike(翻转课) 与 studyservice-api(知到) 这俩版本, 差别巨大...所以代码量增长超乎意料, 几百行全塞一个类里去了, 别太在意.
 ***
 #### 重要通知
-更新2.0版, 有以下重要改变
-1. 新增知到API(studyservice-api)的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
-2. 不再需要 _selenium_ 来登陆, 使用 _selenium_ 的版本已移入其他分支, 后续应该很少更新了
+更新 V1.X -> V2.X, 有以下重要改变
+1. 新增 知到API (studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
+2. 不再需要 _selenium_ 来登入, 使用 _selenium_ 的版本将移入其他分支, 后续应该很少更新了
 3. 新增依赖 _pycryptodome_
 ***
-
 #### 准备工作
 
 你需要准备以下东西
@@ -27,9 +26,15 @@
 
 本块分为
 
-1. `Login`: 为了获取 `Cookies`
+1. `Login`: 获取 `Cookies`
+   * 常规
+     * 配置文件
+     * 命令行 
+   * `API`
 
-2. `Fxxking`: 真正开始刷进度, 现在支持用命令行参数和 `API` 两种方式开干
+2. `Fxxking`: 正事, 开干
+   * 命令行
+   * `API`
 
 ##### Login
 如果你能自己得到 `Cookies` 就可以略过, 直接给 `Fucker` 实例的 `cookies` 属性赋值就行
@@ -43,10 +48,17 @@
   "logLevel": "INFO"
 }
 ```
-填入账号密码即可自动登录, 否则会需要交互输入缺失信息  
-*_配置文件如果没有的话会在 main.py 执行时自动创建._   
-** _如果非常用地登入会需要短信验证, 你应该先手动登入一次, 以让你的所在地列入白名单._  
-***
+填入账号密码即可无干预自动登入, 否则会需要交互输入缺失信息  
+ _*信息账号为空时密码将被无视_  
+ _**配置文件如果没有的话会在 main.py 执行时自动创建._   
+
+也可以使用命令行参数登入, 但要注意密码将会明文留在记录中, 故不推荐使用 `-p`
+```bash
+python main.py -c <course id> -u <username> -p <password>
+```
+_*如果非常用地登入会需要短信验证, 你应该先手动登入一次, 以让你的所在地列入白名单._  
+_**优先级: 命令行 > 配置文件_
+
 ###### `API` 指北:  
 _Python3_ 登入样例 (如果你想单独用该模块的话)
 ```Python
@@ -57,7 +69,7 @@ fucker.login(username:str, password:str)
 fucker.cookies = {}
 # 如果你不想使用 login
 # 也可直接传入符合 requests 库要求的 cookies
-# 该 cookies 会覆盖原有的, 请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
+# 该 cookies 会覆盖原有值, 同时请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
 ```
 ***
 ##### Fxxking
@@ -69,17 +81,18 @@ python main.py -c 114514
 # 又或者可以限制学习25分钟, 顺带加个代理?
 python main.py -c 114514 -l 25 --proxy http://127.0.0.1:2333
 # 遇到问题想开 debug 模式?
-python main.py -吃114514 -d
+python main.py -c 114514 -d
 # 又比如你想只干某几个视频, 那你可以使用 -v 传入视频 ID
 python main.py -c 114514 -v 4060 9891
 ```
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
-课程 ID 为 `courseId` 或 `recruitAndCourseId` 参数, 如果为后者, 视频 ID 将被无视.  
-更多选项请使用 `-h` 查看.
+  _*课程 ID 为 `courseId` 或 `recruitAndCourseId` 参数, 如果为后者, 视频 ID 将被无视._  
+  _**更多选项请使用 `-h` 查看._  
+  _***优先级: 命令行 > 配置文件_  
 
-运行结果如下:
+运行示例如下:
 ![运行示例](./images/running.png)
-***
+
 ###### `API` 指北:  
 一段伪示例如下
 ```Python
@@ -87,41 +100,66 @@ from fucker import Fucker
 
 fucker = Fucker()
 # 或者更进阶一些
-fucker = Fucker(speed=1.25, end_thre=0.91)
+fucker = Fucker(speed=1.5, end_thre=0.91)
 # 以上控制播放速度以及终止临界值
-# 播放速度正常最高也就1.25, 但似乎更高的服务器也接受
-# 不过怕暴露就谨慎些吧
-# 智慧树把高于一定百分比的进度视为完成, 0.91 保险一点
+# speed: 翻转课播放速度正常最高为1.25, 知到课为1.5, 但似乎更高的服务器也接受, 不过怕暴露就谨慎些吧
+# end_thre: 智慧树把高于一定百分比的进度视为完成, 0.91 保险一点
 # 以上俩参数仅对视频有效, 其他的内容就只有进度0或1
 fucker.login()
 fucker.fuckCourse(courseId) # 把整个课程都干了
 fucker.fuckVideo(courseId, fileId) # 只干一个视频
 ```
-#### Fucker 结构
-![structure](./images/struct.png)
+***
 #### 常见问题
 * 登陆失败
   * 检查你的账号密码是否有误
-  * 先用浏览器登陆一次看看, 可能你的 IP 地址被认为是异地了, 需要短信验证
+  * 先用浏览器登入一次看看, 可能你的 IP 地址被认为是异地了, 需要短信验证
 * 需要滑块验证 (触发原因不明)
-  * 浏览器登陆后手动过一次验证
-* 不明系统故障
+  * 浏览器登入后手动过一次验证
+* 请求响应: “不明服务器故障”
   * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
+* 语法错误
+  * 喂, 伙计, _Python_ 版本对了没?
+* 其他错误
+  * 建议先开启 DEBUG 模式, 自己查看报错信息, 如果确实是我的锅就劳烦开个 issue
 
-指北就这些啦, 代码很少可以自己看.
+*** *拜托了开 issue 的话要附上有用的信息, 这种事本来不必强调的***
+
+
+
+
+总之...
+指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
+***
+#### 结构介绍
+##### 文件结构:
+* main.py: 命令行主函数
+* sign.py: 负责生成 hike `API` 所需的 `signature` 参数
+* utils.py: 一些常用工具
+* logger.py: 日志工具, 将不同等级的日志写入不同文件
+* fucker.py: `Fucker` 类定义, 所有核心代码全塞一起了, 莫在意
+* ObjDict.py: `ObjDict` 类定义, 继承自 `dict`, 可以 `object` 属性形式访问 `dict`
+* zd_utils.py: 知到 `API` 所需的工具, 如生成 `ev` 和 `secretStr`  
+* config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
+* meta.json: 包含版本和分支信息
+* decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
+##### Fucker Class Structure:  
+![structure](./images/struct.png)  
+我的很大, 你忍一下(指类定义)
 ***
 ## 后记
 这一段算是授之以渔吧, 毕竟网站以后更新可能会改内容, 我又没时间更新, 就先把思路写在这. 但要注意, 下文提到的混淆肯定引入了随机量, 不可完全照搬该思路.  
 过程中用到的文件样本大多都在 _decrypt_ 目录下压缩档里.
 
-*_以下内容仅针对翻转课的 `API` (hike开头的域名)_
+*** *以下内容仅针对翻转课的 `API` ("hike" 开头的域名)***
 
 #### chapter 0: Too Young Too Naive
 本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付翻转课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
 
+##### 捉包:
 总之先捉个包看看前端怎么和服务器交流, 没想到一开浏览器开发者模式就遇到了问题.  
-一旦监测到 DevTools, 网页界面就立即停止响应.  
-但这还不简单, 手动把相关 JavaScript 无脑删不就行, 源码都在我手上有什么好怕的.
+一旦监测到 _DevTools_, 网页界面就立即停止响应.  
+但这还不简单, 手动把相关 _JavaScript_ 无脑删不就行, 源码都在我手上有什么好怕的.
 
 紧接着一看源码:
 
@@ -136,9 +174,10 @@ _好家伙《乱码1/2》_
 
 `Params`:
 ![params](./images/params.png)
-*_敏感信息被替换了_  
+_*敏感信息被替换了_  
 你看看这些人多不专业, 拿 `GET` 干 `POST` 的活, 而且那个 `uuid` 根本就不是真的 UUID, 七八个随机字符而已.  
 
+##### 模拟请求:
 不过我们一路顺风, 成功就在眼前(flag++).  
 这时可以看到一个正常的响应是:
 ```JSON
@@ -171,14 +210,13 @@ _好家伙《乱码1/2》_
 想要自己生成这个 `MD5` 签名就只能从前端代码里找 salt 等数据.
 
 没办法, 开始人生第一次反混淆 _JavaScript_ 吧...
-
+***
 #### chapter 1: At Beginning, It's Just Chaos
 下图开头这个站点名就是万恶之源了, 话说为什么叫“加密”, 只是混淆而已, 和加密相差太远了, 只能说连名字都取的很 Obfuscated.
 
 首先得把这些诡异变量重命名一下, 在 [_这个站点_](https://deobfuscate.io) 可以初步反混淆, 去掉一些简单的函数 wrapping 并重命名变量, 新变量名当然是随机的, 只是好读一些.
 
-#### chapter 2: Let There = Light
-初步反混淆后
+##### 初步反混淆:
 ![level0](./images/level0.png)
 这下好多了, 我们可以看 ***不*** 到开头有一行超大的列表(太长了就只截了前几个), 不过它大概有 1.4k 个**字符串**,  
 看起来是 Base64, 解码后是乱码, 是被加密了(真·加密).
@@ -214,21 +252,23 @@ def decrypt(index:str, key:str):
     return decrypted
 ```
 
-_JavaScript_ 原版其实在 Base64 解码后还有个诡异的, 手动把解码内容 URLEncode 了, 又调用 `decodeURIComponent` 解码的操作.  
-一开始我把它删了, 结果竟然生成内容不一样. 似乎是 _JavaScript_ 的 `atob` 似乎会保留非法的内容? 经过看似无意义的 URL Encode&Decode 会把这些字符丢弃掉, 只能说混淆者真是钻研了折磨人的极致了, 好在 _Python_ 的 `b64dec` 默认丢弃这些内容. *_此部分存疑, 不确定原因是不是这个_
+_JavaScript_ 原版其实在 Base64 解码后, 还有个手动把内容 URLEncode 了, 又调用 `decodeURIComponent` 解码的诡异操作.  
+一开始我把它删了, 结果竟然生成内容不一样. 似乎是 _JavaScript_ 的 `atob` 似乎会保留非法的内容? 经过看似无意义的 URL Encode&Decode 会把这些字符丢弃掉, 只能说混淆者真是钻研了折磨人的极致了, 好在 _Python_ 的 `b64decode` 默认丢弃这些内容. _*此部分存疑, 不确定原因是不是这个_
 
 接下来尝试对列表内容解密, 发现还是乱码...
 
 没办法, 只得继续化简开头的函数, 看看会有什么线索.  
 接着发现程式开头有一段循环, 把列表开头和结尾的俩无意义的东西扔了, 顺带把这个列表旋转了138位, 用 _Python_ 表示就是 `deque.rotate(-138)`  
-大概这个值是动态的, 再混淆一次不一定是138.  
-旋转后的列表我已经放入 _decrypt.py_ 文件中, 但那个肯定也是动态生成的, 仅供参考, 下个页面改版就不能用了
+大概这个值是好像是固定的, 但保不准以后会变   
 
-解密并替换后的文件:
+##### 解读解密后代码:
+解密并替换内容后的文件:
 ![level2](./images/level2.png)
 
 解密之后常量已经可以看到了, 但其中仍有很多垃圾信息.  
-比如其中有类模式, 就是混淆版本会在一个 `Object` 内包装一堆简单的函数, 比如加减和比较, 然后取个无意义的名字. 结合那一堆无意义的变量来做比较判断, 以此来表示 `Boolean` 值, 因为套的次数太多所以自动反混淆没能解决它们, 但只要搞清这点可以去掉很多无意义的分支.
+比如其中有类模式, 就是混淆版本会在一个 `Object` 内包装一堆简单的函数, 比如加减和比较, 然后取个无意义的名字.  
+结合那一堆无意义的变量来做比较判断, 以此来表示单个 `Boolean` 值.  
+因为嵌套的次数太多所以自动反混淆没能解决它们, 但只要搞清这点可以手动去掉很多无意义的分支.
 ```JavaScript
 var Wtf = {
        RvuT: function (dyo, bie){
@@ -252,9 +292,9 @@ if (false){
 //do fucking nothing but consuming your CPU, storage, network bandwidth and god damn time
   
 ```
-
-#### chapter 3: small step, Giant Leap
-要继续解读的话这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的, 重复的部分:
+***
+#### chapter 2: Let There = Light
+总算看见曙光了, 但要继续解读的话, 这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的, 重复的部分:
 
 ![level3](./images/level3.png)
 
@@ -282,11 +322,13 @@ function jobany(params) {
 
 **盐**(bushi):
 ![Shio](./images/Shiochan.webp)
-
-有了这个我们可以自己签名了, 没想到人都这么大了还靠在自己作业上签名来骗人
+***
+#### chapter 3: small step, Giant Leap
+为了个区区 `signature` 废了好大功夫  
+不过有了这个我们可以自己签名了, 没想到人都这么大了还靠在自己作业上签名来骗人
 ```Python
 from hashlib import md5
-from utils import ObjDict # 这是一个我从 dict 继承后魔改的玩意儿，可以用 JavaScript 风格访问 dict
+from ObjDict import ObjDict # 这是一个我从 dict 继承后魔改的玩意儿，可以用 JavaScript 风格访问 dict
 
 SALT = "o6xpt3b#Qy$Z"
 
@@ -301,7 +343,7 @@ def sign(p:dict):
 
 ![1000%](./images/1000.png)  
 ~~_已经1000%了()_~~  
-
+***
 给把如此凌乱的内容看到最后你一些安慰吧  
 祝你学习像 Anya 一样好, 料理如 Yor 一般出色!
 ![bonus](./images/bonus.jpg)

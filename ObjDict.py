@@ -72,6 +72,8 @@ class ObjDict(dict):
         try:
             return self[name]
         except KeyError:
+            if default is not ObjDict.NotExist:
+                return default
             raise AttributeError
 
     def __setattr__(self, name, value):
