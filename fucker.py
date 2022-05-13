@@ -23,6 +23,7 @@ class TimeLimitExceeded(Exception):
 
 class InvalidCookies(ValueError):
     pass
+
 class Fucker:
     def __init__(self, cookies: dict = None,
                  headers: dict = None,
@@ -96,7 +97,7 @@ class Fucker:
                 print(f"Username: {username}")
             if not password:
                 password = getpass("Password: ")
-        # urls
+
         login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice.zhihuishu.com/login/gologin"
         self._sessionReady() # set cookies, headers, proxies
         self.session.headers.update({
@@ -156,10 +157,10 @@ class Fucker:
     def fuckZhidaoCourse(self, RAC_id:str):
         """
         :param RAC_id: recruitAndCourseId
-        :param video_ids: list of video ids
         """
         if not self._cookies:
             logger.warning("No cookies found, please login first")
+            return
         logger.info(f"Fucking Zhidao course {RAC_id}")
 
         self.total_studied_time = 0 # reset total studied time
@@ -236,6 +237,7 @@ class Fucker:
             print(prefix) # extra line as separator
             print(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
             for lesson in chapter.videoLessons:
+                print(prefix*2)
                 print(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
                 if "videoId" in lesson: # no sublessons, only one video
                     lesson.lessonId = lesson.id
@@ -353,7 +355,6 @@ class Fucker:
             if answer is not None:
                 if answer == 0:
                     answer = None # unset answer flag
-                    report = True # set report flag
                     self._apiQuery(subQ_url, data={
                         "courseId": ctx.course_id, # this.courseId,
                         "recruitId": ctx.recruit_id, # this.recruitId
@@ -421,14 +422,15 @@ class Fucker:
                 watch_point = "0,1"       # reset watch point
             ### end events
 
-            progressBar(played_time, end_time, prefix=f"fucking above", suffix="of threshold")
+            progressBar(played_time, end_time, # have a glance of when quiz is answered
+                        prefix="answering quiz" if answer else "fucking above", suffix="of threshold")
         ##### end main event loop
         time.sleep(random()+1)
 
     def answerZhidao(self, q:dict):
-        """there is a sample of question object in README.md"""
+        """you can override this function to answer questions"""
         q = ObjDict(q)
-        a = [str(opt.id) for opt in q.questionOptions if opt.result=='1']
+        a = [str(opt.id) for opt in q.questionOptions if opt.result=='1'] # choose correct answers
         return ','.join(a)
 
     def _apiQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,

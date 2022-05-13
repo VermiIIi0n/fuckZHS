@@ -39,12 +39,6 @@ class MonoLogger:
         self.setFormatter(formatter)
         self.toConsole(to_console)
 
-        self._debug_lock = Lock()
-        self._info_lock = Lock()
-        self._warning_lock = Lock()
-        self._error_lock = Lock()
-        self._critical_lock = Lock()
-
     @property
     def name(self):
         return self._name

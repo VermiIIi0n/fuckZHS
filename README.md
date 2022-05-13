@@ -1,7 +1,7 @@
 ## ZHS Fucker 食用指北
 
 #### WTF?
-这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程(翻转课和知到的共享学分课), 为你节约有限的生命.
+这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程(翻转课和知到的共享学分课), 为你节约有限的生命.  
  _*起初仅为翻转课而写, 现在也支持知到的共享学分课_
 ***
 #### WHY?
@@ -9,32 +9,35 @@
 因为它会检查 DevTools 是否打开, 如果开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
 于是我打算直接抄家, 入它后端(*), 所以便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
 ***
-#### 重要通知
-更新 V1.X -> V2.X, 有以下重要改变
-1. 新增 知到API (studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
+#### 重要更新
+v1.X -> v2.0, 有以下重要改变
+1. 新增 知到 API(studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
 2. 不再需要 _selenium_ 来登入, 使用 _selenium_ 的版本将移入其他分支, 后续应该很少更新了
 3. 新增依赖 _pycryptodome_
 ***
 #### 准备工作
-
 你需要准备以下东西
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
 * _requests_ 
 * _pycryptodome_ 或其等价替代
+
+装好 _Python_ 后执行 `pip install -r requirements.txt` 即可
 ***
 #### 如何使用
 
 本块分为
 
 1. `Login`: 获取 `Cookies`
-   * 常规
+   * 命令行登入
      * 配置文件
-     * 命令行 
-   * `API`
+     * 参数
+   * `API` 登入
 
-2. `Fxxking`: 正事, 开干
-   * 命令行
-   * `API`
+2. `Fxxking`: 开干
+   * 命令行用例
+   * `API` 用例
+
+*`API`: _用于单独使用模块_
 
 ##### Login
 如果你能自己得到 `Cookies` 就可以略过, 直接给 `Fucker` 实例的 `cookies` 属性赋值就行
@@ -49,8 +52,7 @@
 }
 ```
 填入账号密码即可无干预自动登入, 否则会需要交互输入缺失信息  
- _*信息账号为空时密码将被无视_  
- _**配置文件如果没有的话会在 main.py 执行时自动创建._   
+ _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
 也可以使用命令行参数登入, 但要注意密码将会明文留在记录中, 故不推荐使用 `-p`
 ```bash
@@ -60,7 +62,7 @@ _*如果非常用地登入会需要短信验证, 你应该先手动登入一次,
 _**优先级: 命令行 > 配置文件_
 
 ###### `API` 指北:  
-_Python3_ 登入样例 (如果你想单独用该模块的话)
+_Python3_ 登入样例
 ```Python
 from fucker import Fucker
 fucker = Fucker()
@@ -78,10 +80,10 @@ fucker.cookies = {}
 ```bash
 cd fuckZHS
 python main.py -c 114514
-# 又或者可以限制学习25分钟, 顺带加个代理?
-python main.py -c 114514 -l 25 --proxy http://127.0.0.1:2333
-# 遇到问题想开 debug 模式?
-python main.py -c 114514 -d
+# 又或者可以限制学习25分钟
+python main.py -c 114514 -l 25
+# 遇到问题想开 debug 模式, 顺带加个代理?
+python main.py -c 114514 -d --proxy http://127.0.0.1:2333
 # 又比如你想只干某几个视频, 那你可以使用 -v 传入视频 ID
 python main.py -c 114514 -v 4060 9891
 ```
@@ -111,10 +113,10 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 ```
 ***
 #### 常见问题
-* 登陆失败
+* 登入失败
   * 检查你的账号密码是否有误
   * 先用浏览器登入一次看看, 可能你的 IP 地址被认为是异地了, 需要短信验证
-* 需要滑块验证 (触发原因不明)
+* 请求响应: “需要滑块验证” (触发原因不明)
   * 浏览器登入后手动过一次验证
 * 请求响应: “不明服务器故障”
   * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
@@ -123,25 +125,19 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 * 其他错误
   * 建议先开启 DEBUG 模式, 自己查看报错信息, 如果确实是我的锅就劳烦开个 issue
 
-*** *拜托了开 issue 的话要附上有用的信息, 这种事本来不必强调的***
-
-
-
-
-总之...
 指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
 ***
 #### 结构介绍
 ##### 文件结构:
 * main.py: 命令行主函数
-* sign.py: 负责生成 hike `API` 所需的 `signature` 参数
+* sign.py: 负责生成 hike API 所需的 `signature` 参数
 * utils.py: 一些常用工具
 * logger.py: 日志工具, 将不同等级的日志写入不同文件
 * fucker.py: `Fucker` 类定义, 所有核心代码全塞一起了, 莫在意
 * ObjDict.py: `ObjDict` 类定义, 继承自 `dict`, 可以 `object` 属性形式访问 `dict`
-* zd_utils.py: 知到 `API` 所需的工具, 如生成 `ev` 和 `secretStr`  
+* zd_utils.py: 知到 API 所需的工具, 如生成 `ev` 和 `secretStr`  
 * config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
-* meta.json: 包含版本和分支信息
+* meta.json: 包含版本和分支等信息, 也用于更新检查
 * decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
 ##### Fucker Class Structure:  
 ![structure](./images/struct.png)  
@@ -151,7 +147,7 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 这一段算是授之以渔吧, 毕竟网站以后更新可能会改内容, 我又没时间更新, 就先把思路写在这. 但要注意, 下文提到的混淆肯定引入了随机量, 不可完全照搬该思路.  
 过程中用到的文件样本大多都在 _decrypt_ 目录下压缩档里.
 
-*** *以下内容仅针对翻转课的 `API` ("hike" 开头的域名)***
+***以下内容仅针对翻转课的 `API` ("hike" 开头的域名)***
 
 #### chapter 0: Too Young Too Naive
 本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付翻转课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
