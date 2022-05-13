@@ -3,7 +3,6 @@ from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
 from utils import progressBar, HMS
 from random import randint, random
-from collections import deque
 from threading import Thread
 from base64 import b64encode
 from getpass import getpass
@@ -17,6 +16,24 @@ import time
 import json
 import re
 import os
+
+"""
+⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
+⠄⠄⠄⣾⣿⠿⠿⠶⠿⢿⣿⣿⣿⣿⣦⣤⣄⢀⡅⢠⣾⣛⡉⠄⠄⠄⠸⢀⣿⠄
+⠄⠄⢀⡋⣡⣴⣶⣶⡀⠄⠄⠙⢿⣿⣿⣿⣿⣿⣴⣿⣿⣿⢃⣤⣄⣀⣥⣿⣿⠄
+⠄⠄⢸⣇⠻⣿⣿⣿⣧⣀⢀⣠⡌⢻⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠿⠿⣿⣿⣿⠄
+⠄⢀⢸⣿⣷⣤⣤⣤⣬⣙⣛⢿⣿⣿⣿⣿⣿⣿⡿⣿⣿⡍⠄⠄⢀⣤⣄⠉⠋⣰
+⠄⣼⣖⣿⣿⣿⣿⣿⣿⣿⣿⣿⢿⣿⣿⣿⣿⣿⢇⣿⣿⡷⠶⠶⢿⣿⣿⠇⢀⣤
+⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣽⣿⣿⣿⡇⣿⣿⣿⣿⣿⣿⣷⣶⣥⣴⣿⡗
+⢀⠈⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡟⠄
+⢸⣿⣦⣌⣛⣻⣿⣿⣧⠙⠛⠛⡭⠅⠒⠦⠭⣭⡻⣿⣿⣿⣿⣿⣿⣿⣿⡿⠃⠄
+⠘⣿⣿⣿⣿⣿⣿⣿⣿⡆⠄⠄⠄⠄⠄⠄⠄⠄⠹⠈⢋⣽⣿⣿⣿⣿⣵⣾⠃⠄
+⠄⠘⣿⣿⣿⣿⣿⣿⣿⣿⠄⣴⣿⣶⣄⠄⣴⣶⠄⢀⣾⣿⣿⣿⣿⣿⣿⠃⠄⠄
+⠄⠄⠈⠻⣿⣿⣿⣿⣿⣿⡄⢻⣿⣿⣿⠄⣿⣿⡀⣾⣿⣿⣿⣿⣛⠛⠁⠄⠄⠄
+⠄⠄⠄⠄⠈⠛⢿⣿⣿⣿⠁⠞⢿⣿⣿⡄⢿⣿⡇⣸⣿⣿⠿⠛⠁⠄⠄⠄⠄⠄
+⠄⠄⠄⠄⠄⠄⠄⠉⠻⣿⣿⣾⣦⡙⠻⣷⣾⣿⠃⠿⠋⠁⠄⠄⠄⠄⠄⢀⣠⣴
+⣿⣿⣿⣶⣶⣮⣥⣒⠲⢮⣝⡿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿⣿⣿
+"""
 
 class TimeLimitExceeded(Exception):
     pass
@@ -67,7 +84,7 @@ class Fucker:
         logger.debug(f'proxies: {self.proxies}')
         logger.debug(f'headers: {self.headers}')
 
-        self.limit = abs(limit*60)                 # time limit for fucking
+        self.limit = abs(limit)                    # time limit for fucking, in minutes
         self.total_studied_time = 0                # in seconds, fucking will stop when it reaches the limit
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
         self.end_thre = min(end_thre or 0.91, 1.0) # video play end threshold, above this will be considered as finished
@@ -81,13 +98,14 @@ class Fucker:
     def cookies(self, cookies: dict|requests.cookies.RequestsCookieJar):
         self._cookies = cookies if isinstance(cookies, requests.cookies.RequestsCookieJar)\
                                 else requests.utils.cookiejar_from_dict(cookies)
+        logger.debug(f'received cookies: {self.cookies}')
         if cookies:
             try:
                 self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"]
                 self._cookies[f"exitRecod_{self.uuid}"] = "2"
             except Exception:
                 raise InvalidCookies()
-        logger.debug(f"cookies: {self._cookies}")
+        logger.debug(f"set cookies: {self._cookies}")
 
     def login(self, username: str=None, password: str=None):
         while not username or not password:
@@ -97,43 +115,38 @@ class Fucker:
                 print(f"Username: {username}")
             if not password:
                 password = getpass("Password: ")
-
-        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice.zhihuishu.com/login/gologin"
+        # urls
+        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
+        valid_url = "https://passport.zhihuishu.com/user/validateAccountAndPassword"
+        check_url = "https://appcomm-user.zhihuishu.com/app-commserv-user/userInfo/checkNeedAuth"
         self._sessionReady() # set cookies, headers, proxies
         self.session.headers.update({
             "Origin": "https://passport.zhihuishu.com",
             "Referer": login_page
         })
         try:
-            r = self.session.get(login_page, proxies=self.proxies, timeout=10)
-            tree = html.fromstring(r.text)
-            lt = tree.xpath("//input[@name=\"lt\"]")[0].attrib["value"]
-            data = {
-                "lt": lt,
-                "execution": "e1s1",
-                "_eventId": "submit",
-                "username": username,
-                "password": password,
-                "clCode": "",
-                "clPassword": "",
-                "tlCode": "",
-                "tlPassword": "",
-                "remember": "on"
+            self.session.get(login_page, proxies=self.proxies, timeout=10)
+            form = {
+                "account": username,
+                "password": password
             }
-            self.session.post(login_page,data=data, proxies=self.proxies, timeout=10)
+            user_info = self._apiQuery(valid_url, form) # get uuid and pwd
+            need_auth = self._apiQuery(check_url, {"uuid": user_info.uuid}).rt.needAuth
+            if need_auth:
+                raise Exception("account need auth, please login using browser to pass auth")
+            self.session.get(login_page, params={"pwd": user_info.pwd}, proxies=self.proxies, timeout=10)
             self.cookies = self.session.cookies.copy()
             if not self.cookies:
                 raise Exception("No cookies found")
-
-            logger.debug(f"session cookies: {self.session.cookies}\ncookies: {self.cookies}")
+                
             logger.info("Login successful")
             print("Login successful")
         except InvalidCookies as e:
             logger.error(f"Invalid cookies")
-            print("Invalid cookies, login failed")
+            raise Exception("Login failed: Invalid cookies")
         except Exception as e:
             logger.error(f"Login failed: {e}")
-            print(f"Login failed: {e}")
+            raise Exception("Login failed: {e}")
 
     def fuckCourse(self, course_id:str):
         if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a course id or a recruitAndCourseId
@@ -183,13 +196,13 @@ class Fucker:
         self.session.get(login_url, params=params, proxies=self.proxies)
 
         # get course info, including schoolId, recruitId, course name, etc
-        course = self._apiQuery(course_url, data).data
+        course = self._zhidaoQuery(course_url, data).data
         school_id = course.schoolId  # not used
         recruit_id = course.recruitId
         logger.info(f"course: {course.courseInfo.name}")
 
         # get videos list
-        chapters = self._apiQuery(videos_url, data).data
+        chapters = self._zhidaoQuery(videos_url, data).data
         chapters.default = [] # set default value for non exist attribute
         logger.debug(json.dumps(chapters, indent=4))
         course_id = chapters.courseId
@@ -208,7 +221,7 @@ class Fucker:
               f"(total root chapters: {len(chapters.videoChapterDtos)})")
 
         # get read-before, maybe unneccessary. BUTT hey, it's a POST request
-        self._apiQuery(read_url, data={
+        self._zhidaoQuery(read_url, data={
             "courseId": course_id,
             "recruitId": recruit_id,
         })
@@ -219,13 +232,13 @@ class Fucker:
             "lessonVideoIds": [video.id for video in videos],
             "recruitId": recruit_id
         }
-        r = self._apiQuery(state_url, data=data).data
+        r = self._zhidaoQuery(state_url, data=data).data
         r.default = {}        # set default value for non exist attribute
         r.lesson.update(r.lv) # join lesson and video info
         states = r.lesson
 
         # get most recently viewed video id, probably unneccessary, again, it's a POST request
-        last_video = self._apiQuery(last_url, data={
+        last_video = self._zhidaoQuery(last_url, data={
             "recruitId": recruit_id
         }).data.lastViewVideoId
         
@@ -268,8 +281,8 @@ class Fucker:
         :param video: video info
         :param ctx: context info, including course id, chapter id, recruit id, 
         """
-        if self.limit and self.total_studied_time >= self.limit:
-            raise TimeLimitExceeded(f"{self.limit//60} minutes")
+        if self.limit and self.total_studied_time >= self.limit*60:
+            raise TimeLimitExceeded(f"{self.limit} minutes")
 
         # urls 
         note_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/prelearningNote"
@@ -294,7 +307,7 @@ class Fucker:
             "recruitId": ctx.recruit_id,
             "videoId": video.videoId 
         }
-        token_id = self._apiQuery(note_url, data=data).data.studiedLessonDto.id
+        token_id = self._zhidaoQuery(note_url, data=data).data.studiedLessonDto.id
         token_id = b64encode(str(token_id).encode()).decode()
 
         # get questions
@@ -304,15 +317,15 @@ class Fucker:
             "recruitId": ctx.recruit_id, 
             "courseId": ctx.course_id
         }
-        questions = self._apiQuery(event_url, data=data).data.questionPoint
-        questions = deque(sorted(questions, key=lambda x: x.timeSec)) if questions else None
-        while questions and questions[0].timeSec <= played_time:
-            questions.popleft() # remove questions that are already answered
+        questions = self._zhidaoQuery(event_url, data=data).data.questionPoint
+        questions = sorted(questions, key=lambda x: x.timeSec, reverse=True) if questions else None
+        while questions and questions[-1].timeSec <= played_time:
+            questions.pop() # remove questions that are already answered
 
         # compute end time and make sure to answer all questions
         end_time = video.videoSec * self.end_thre
         if questions:
-            end_time = max(questions[-1].timeSec, end_time)
+            end_time = max(questions[0].timeSec, end_time) # compare last question time with end_time
 
         # emulating video playing
         watch_thread = Thread(target=self._watchVideo, args=(video.videoId,))
@@ -339,10 +352,10 @@ class Fucker:
 
             ### events
             ## get questions
-            if questions and played_time >= questions[0].timeSec:
-                question = questions.popleft()
+            if questions and played_time >= questions[-1].timeSec:
+                question = questions.pop()
                 try:
-                    question = self._apiQuery(getQ_url, data={
+                    question = self._zhidaoQuery(getQ_url, data={
                         "lessonId": video.lessonId, # this.lessonId
                         "lessonVideoId": video.id, # this.smallLessonId
                         "questionIds" : question.questionIds
@@ -355,7 +368,7 @@ class Fucker:
             if answer is not None:
                 if answer == 0:
                     answer = None # unset answer flag
-                    self._apiQuery(subQ_url, data={
+                    self._zhidaoQuery(subQ_url, data={
                         "courseId": ctx.course_id, # this.courseId,
                         "recruitId": ctx.recruit_id, # this.recruitId
                         "testQuestionId": question.questionId, # this.pageList.testQuestion.questionId
@@ -393,7 +406,7 @@ class Fucker:
                     "ev": getEv(raw_ev),
                     "learningTokenId": token_id
                 }
-                self._apiQuery(record_url, data=data) # now submit to database
+                self._zhidaoQuery(record_url, data=data) # now submit to database
                 last_submit = played_time # update last pause time
                 watch_point = "0,1"       # reset watch point
             ## report to cache
@@ -417,7 +430,7 @@ class Fucker:
                     "ev": getEv(raw_ev),
                     "learningTokenId": token_id
                 }
-                self._apiQuery(cache_url, data=data) # now submit to cache
+                self._zhidaoQuery(cache_url, data=data) # now submit to cache
                 last_submit = played_time # update last pause time
                 watch_point = "0,1"       # reset watch point
             ### end events
@@ -433,35 +446,21 @@ class Fucker:
         a = [str(opt.id) for opt in q.questionOptions if opt.result=='1'] # choose correct answers
         return ','.join(a)
 
-    def _apiQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
+    def _zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
                setTimeStamp:bool=True, method:str="POST"):
         """set ok_code to None for no check"""
-        method = method.upper()
         cipher = Cipher()
         if setTimeStamp:
             data["dateFormate"] = int(time.time())*1000 # somehow their timestamps are ending with 000
-        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data, indent=4)}\n"+
-                     f"headers: {json.dumps(self.headers, indent=4)}\n"+
-                     f"cookies: {self.session.cookies}\n"+
-                     f"proxies: {json.dumps(self.session.proxies, indent=4)}")
         form ={"secretStr": cipher.encrypt(json.dumps(data)) if encrypt else json.dumps(data)}
-        match method:
-            case "POST":
-                r = self.session.post(url, data=form, proxies=self.proxies, timeout=10)
-            case "GET":
-                r = self.session.get(url, params=form, proxies=self.proxies, timeout=10)
-            case _:
-                e = ValueError(f"Unsupport method: {method}")
-                logger.error(e)
-                raise e
-        ret = ObjDict(r.json())
+        ret = self._apiQuery(url, data=form, method=method)
         if ok_code is not None and ret.code != ok_code:
             e = Exception(ret.message)
             logger.error(e)
             raise e
         return ret
 
-
+# end of zhidao methods
 #############################################
 # following are methods for hike API
     def fuckFile(self, course_id, file_id):
@@ -478,9 +477,9 @@ class Fucker:
         if not self._cookies:
             logger.warning("No cookies found, please login first")
             return
-        if self.limit and self.total_studied_time >= self.limit:
+        if self.limit and self.total_studied_time >= self.limit*60:
                 logger.info(f"Studied time limit reached, video {file_id} skipped")
-                raise TimeLimitExceeded(f"{self.limit//60} minutes")
+                raise TimeLimitExceeded(f"{self.limit} minutes")
 
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
@@ -597,27 +596,13 @@ class Fucker:
     def _hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
                    setTimeStamp:bool=True, method:str="GET"):
         """set ok_code to None for no check"""
-        method = method.upper()
         if setTimeStamp:
             data["_"] = int(time.time()*1000) # miliseconds
         if sig:
             for k,v in data.items():
                 data[k] = str(v)
             data["signature"] = sign(data)
-        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data, indent=4)}\n"+
-                     f"headers: {json.dumps(self.headers, indent=4)}\n"+
-                     f"cookies: {self.session.cookies}\n"+
-                     f"proxies: {json.dumps(self.session.proxies, indent=4)}")
-        match method:
-            case "POST":
-                r = self.session.post(url, data=data, proxies=self.proxies, timeout=10)
-            case "GET":
-                r = self.session.get(url, params=data, proxies=self.proxies, timeout=10)
-            case _:
-                e = ValueError(f"Unsupport method: {method}")
-                logger.error(e)
-                raise e
-        ret = ObjDict(r.json())
+        ret = self._apiQuery(url, data, method=method)
         if ok_code is not None and int(ret.status) != ok_code:
             e = Exception(f"{ret.status} {ret.msg}")
             logger.error(e)
@@ -642,8 +627,27 @@ class Fucker:
         url = ObjDict(json.loads(r)).result.lines[0].lineUrl
         requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
 
+    def _apiQuery(self, url:str, data:dict, method:str="POST"):
+        method = method.upper()
+        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data, indent=4)}\n"+
+                     f"headers: {json.dumps(self.headers, indent=4)}\n"+
+                     f"cookies: {self.session.cookies}\n"+
+                     f"proxies: {json.dumps(self.session.proxies, indent=4)}")
+        match method:
+            case "POST":
+                r = self.session.post(url, data=data, proxies=self.proxies, timeout=10)
+            case "GET":
+                r = self.session.get(url, params=data, proxies=self.proxies, timeout=10)
+            case _:
+                e = ValueError(f"Unsupport method: {method}")
+                logger.error(e)
+                raise e
+        ret = ObjDict(r.json())
+        logger.debug(json.dumps(ret, indent=4))
+        return ret
+
     def _sessionReady(self):
-        self.session.cookies = self._cookies.copy()
+        self.session.cookies = self.cookies.copy()
         self.session.headers = self.headers.copy()
         self.session.proxies = self.proxies.copy()
 

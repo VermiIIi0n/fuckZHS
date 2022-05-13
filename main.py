@@ -25,10 +25,10 @@ else:
 
 # parse auguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
-parser.add_argument("-c", "--course", type=str, required=True, help="CourseId or recruitAndCourseId, can be found in URL")
+parser.add_argument("-c", "--course", type=str, help="CourseId or recruitAndCourseId, can be found in URL")
 parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId), can be found in URL, won't work if -c is recruitAndCourseId")
 parser.add_argument("-u", "--username", type=str, help="if not set anywhere, will be prompted")
-parser.add_argument("-p", "--password", type=str, help="If not set anywhere, will be prompted. Be careful, it will be stored history")
+parser.add_argument("-p", "--password", type=str, help="If not set anywhere, will be prompted. Be careful, it will be stored in history")
 parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default value is maximum speed when watching in browser")
 parser.add_argument("-t", "--threshold", type=float, help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
 parser.add_argument("-l", "--limit", type=int, help="Time Limit (in minutes, 0 for no limit), default is 0")
@@ -36,7 +36,9 @@ parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
 parser.add_argument("--proxy", type=str, help="HTTP Proxy Server, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
-
+course = args.course
+while not course:
+    course = input("Requires courseId or recruitAndCourseId: ")
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
 username = args.username or config.username
 password = args.password or config.password
@@ -88,9 +90,10 @@ fucker.login(username, password)
 if args.videos:
     for v in args.videos:
         print(f"fucking {v}")
-        fucker.fuckVideo(course_id=args.course, file_id=v)
+        fucker.fuckVideo(course_id=course, file_id=v)
 else:
-    fucker.fuckCourse(course_id=args.course)
+    fucker.fuckCourse(course_id=course)
+    
 # use fuckCourse method to fuck the entire course
 # fucker.fuckCourse(course_id="")
 
