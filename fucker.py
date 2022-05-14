@@ -81,10 +81,10 @@ class Fucker:
         logger.debug(f'headers: {self.headers}')
 
         self.limit = abs(limit)                    # time limit for fucking, in minutes
-        self.total_studied_time = 0                # in seconds, fucking will stop when it reaches the limit
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
         self.end_thre = min(end_thre or 0.91, 1.0) # video play end threshold, above this will be considered as finished
         self.prefix = "  |"                        # prefix for tree view
+        self.context = ObjDict(default={})         # context for methods
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self):
@@ -104,6 +104,7 @@ class Fucker:
         logger.debug(f"set cookies: {self._cookies}")
 
     def login(self, username: str=None, password: str=None):
+        """empty value will be prompted"""
         while not username or not password:
             if not username:
                 username = input("Username: ")
@@ -142,17 +143,26 @@ class Fucker:
             raise Exception("Login failed: {e}")
 
     def fuckCourse(self, course_id:str, tree_view:bool=True):
+        """
+        ### Fuck the whole course
+        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
+        * `tree_view`: whether to print the tree view of the progress
+        """
         if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
             self.fuckZhidaoCourse(course_id, tree_view=tree_view) # it's a recruitAndCourseId
         else: # it's a courseId
             self.fuckHikeCourse(course_id, tree_view=tree_view)
 
-    def fuckVideo(self, course_id, video_id:str): # same as above
+    def fuckVideo(self, course_id, video_id:str):
+        """
+        ### Fuck a single video
+        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
+        * `video_id`: `fileId`(Hike) or `videoId`(Zhidao, not visible in URL)
+        """
         if re.match(r".*[a-zA-Z].*", course_id):
-            self.fuckHikeVideo(course_id, video_id)
+            self.fuckZhidaoVideo(course_id, video_id)
         else:
-            raise ValueError("Fucking a single video is not supported yet when course id is a recruitAndCourseId\n"+
-                             "and where the hell did you find this video id?")
+            self.fuckHikeVideo(course_id, video_id)
 
 #############################################
 # for some fucking reasons
@@ -160,18 +170,17 @@ class Fucker:
 # so we need to use different methods for different API
 #############################################
 # following are methods for studyservice-api.zhihuishu.com API
-    def fuckZhidaoCourse(self, RAC_id:str, tree_view:bool=True):
+    def getZhidaoContext(self, RAC_id:str, force:bool=False):
         """
+        ### fetch context for zhidao course
         * `RAC_id`: `recruitAndCourseId`
-        * `tree_view`: whether to print the tree progress view of the course
+        * `force`: force update
         """
-        if not self._cookies:
-            logger.warning("No cookies found, please login first")
-            return
-        logger.info(f"Fucking Zhidao course {RAC_id}")
-        tprint = print if tree_view else lambda *a, **k: None
+        if RAC_id in self.context and not force:
+            return self.context[RAC_id]
+        self._checkCookies()
+        logger.info(f"Getting context for {RAC_id}")
 
-        self.total_studied_time = 0 # reset total studied time
         self._sessionReady()        # set cookies, headers, proxies
         self.session.headers.update({
             "Origin": "https://studyh5.zhihuishu.com",
@@ -193,44 +202,67 @@ class Fucker:
         # get course info, including recruitId, course name, etc
         course = self._zhidaoQuery(course_url, data).data
         recruit_id = course.recruitId
-        logger.info(f"course: {course.courseInfo.name}")
 
-        # get videos list
+        # get chapters
         chapters = self._zhidaoQuery(videos_url, data).data
         chapters.default = [] # set default value for non exist attribute
-        logger.debug(json.dumps(chapters, indent=4))
         course_id = chapters.courseId
-        lessons = []
-        videos = []
+        lesson_ids = []
+        videos = ObjDict()
         for chapter in chapters.videoChapterDtos:
             for l in chapter.videoLessons:
-                lessons.append(l)
+                lesson_ids.append(l.id)
+                if "videoId" in l: # this lesson has only one video
+                    v = l.copy()
+                    v.lessonId = l.id
+                    v.id = 0
+                    l.videoSmallLessons = [v]
                 for v in l.videoSmallLessons: 
-                    videos.append(v)
-        logger.info(f"{len(lessons)} lessons, {len(videos)} videos")
-        if not lessons:
-            raise ValueError("No videos found, please check the course id")
-
-        tprint(f"Fucking course {course.courseInfo.name} "+
-              f"(total root chapters: {len(chapters.videoChapterDtos)})")
+                    v.chapterId = chapter.id
+                    videos[v.videoId] = v
+        logger.info(f"{len(lesson_ids)} lessons, {len(videos)} videos")
 
         # get read-before, maybe unneccessary. BUTT hey, it's a POST request
-        self._zhidaoQuery(read_url, data={
-            "courseId": course_id,
-            "recruitId": recruit_id,
-        })
+        self._zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id})
 
         # get study info, including watchState, studyTotalTime
         data = {
-            "lessonIds": [lesson.id for lesson in lessons],
-            "lessonVideoIds": [video.id for video in videos],
+            "lessonIds": lesson_ids,
+            "lessonVideoIds": [video.id for video in videos.values() if video.id],
             "recruitId": recruit_id
         }
         states = self._zhidaoQuery(state_url, data=data).data
-        states.default = {}        # set default value for non exist attribute
+        states.default = ObjDict(default=False)   # set default value for non exist attribute
+        for v in videos.values():
+            state = states.lv[str(v.id)] or states.lesson[str(v.lessonId)]
+            v.watchState, v.studyTotalTime = state.watchState, state.studyTotalTime
 
         # get most recently viewed video id, probably unneccessary, again, it's a POST request
         last_video = self._zhidaoQuery(last_url, data={"recruitId": recruit_id}).data.lastViewVideoId
+
+        ctx = ObjDict({
+            "course": course,
+            "chapters": chapters,
+            "videos": videos,
+            "cookies": self.session.cookies.copy(),
+            "headers": self.session.headers.copy(),
+            "fucked_time": 0
+        }, default={}) # store context for this course
+        self.context[RAC_id] = ctx
+        return ctx
+        
+    def fuckZhidaoCourse(self, RAC_id:str, tree_view:bool=True):
+        """
+        * `RAC_id`: `recruitAndCourseId`
+        * `tree_view`: whether to print the tree progress view of the course
+        """
+        logger.info(f"Fucking Zhidao course {RAC_id}")
+        tprint = print if tree_view else lambda *a, **k: None
+
+        # load context
+        ctx = self.getZhidaoContext(RAC_id)
+        course = ctx.course
+        chapters = ctx.chapters
         
         # start fucking
         begin_time = time.time() # real world time
@@ -242,20 +274,10 @@ class Fucker:
             for lesson in chapter.videoLessons:
                 tprint(prefix*2)
                 tprint(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
-                if "videoId" in lesson: # no sublessons, only one video
-                    lesson.lessonId = lesson.id
-                    lesson.id = 0
-                for video in lesson.videoSmallLessons or [lesson]:
+                for video in lesson.videoSmallLessons:
                     tprint(f"{prefix*3}__Fucking video {video.name}"[:w_lim])
                     try:
-                        state = states.lv[str(video.id)] or states.lesson[str(video.lessonId)]
-                        # prepare ctx
-                        ctx = ObjDict({
-                            "course_id": course_id,
-                            "recruit_id": recruit_id,
-                            "chapter_id": chapter.id
-                        })
-                        self.fuckZhidaoVideo(video, state, ctx)
+                        self.fuckZhidaoVideo(RAC_id, video.videoId)
                     except TimeLimitExceeded as e:
                         logger.info(f"Fucking time limit exceeded: {e}")
                         tprint(prefix)
@@ -263,16 +285,16 @@ class Fucker:
                         return
                     except Exception as e:
                         logger.exception(e)
-                        tprint(f"{prefix*3}##Failed: {e}")
+                        tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
         tprint(f"{prefix}\n{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
     
-    def fuckZhidaoVideo(self, video:ObjDict, state:ObjDict, ctx:ObjDict):
+    def fuckZhidaoVideo(self, RAC_id, video_id):
         """
-        :param video: video info
-        :param ctx: context info, including course id, chapter id, recruit id, 
+        * `RAC_id`: `recruitAndCourseId`
+        * `video_id`: `videoId`
         """
-        if self.limit and self.total_studied_time >= self.limit*60:
-            raise TimeLimitExceeded(f"{self.limit} minutes")
+        self._checkCookies()
+        self._checkTimeLimit(RAC_id)
 
         # urls 
         note_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/prelearningNote"
@@ -282,19 +304,25 @@ class Fucker:
         getQ_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/lessonPopupExam"
         subQ_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/saveLessonPopupExamSaveAnswer"
 
-        played_time = state.studyTotalTime
-        watch_state = state.watchState
+        ctx = self.getZhidaoContext(RAC_id)
+        course_id = ctx.chapters.courseId
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        played_time = video.studyTotalTime
+        watch_state = video.watchState
+        if not video:
+            raise ValueError(f"Video {video_id} not found")
         if watch_state == 1:
             logger.info(f"Video {video.name} already watched")
             return
         # get pre learning note
         data = {
-            "ccCourseId": ctx.course_id,
-            "chapterId": ctx.chapter_id,
+            "ccCourseId": course_id,
+            "chapterId": video.chapterId,
             "isApply": 1,
             "lessonId": video.lessonId, # this.lessonId
             "lessonVideoId": video.id, # this.smallLessonId
-            "recruitId": ctx.recruit_id,
+            "recruitId": recruit_id,
             "videoId": video.videoId 
         }
         token_id = self._zhidaoQuery(note_url, data=data).data.studiedLessonDto.id
@@ -304,8 +332,8 @@ class Fucker:
         data = {
             "lessonId": video.lessonId,
             "lessonVideoId": video.id, 
-            "recruitId": ctx.recruit_id, 
-            "courseId": ctx.course_id
+            "recruitId": recruit_id, 
+            "courseId": course_id
         }
         questions = self._zhidaoQuery(event_url, data=data).data.questionPoint
         questions = sorted(questions, key=lambda x: x.timeSec, reverse=True) if questions else None
@@ -336,9 +364,10 @@ class Fucker:
         ##### start main event loop, sort of...
         while played_time < end_time:
             time.sleep(1)
-            self.total_studied_time += 1 # for time limit check
+            ctx.fucked_time += 1 # for time limit check
             elapsed_time += 1
             played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
+            report = random() < 0.0025 # emulating random pause
 
             ### events
             ## get questions
@@ -359,8 +388,8 @@ class Fucker:
                 if answer == 0:
                     answer = None # unset answer flag
                     self._zhidaoQuery(subQ_url, data={
-                        "courseId": ctx.course_id, # this.courseId,
-                        "recruitId": ctx.recruit_id, # this.recruitId
+                        "courseId": course_id, # this.courseId,
+                        "recruitId": recruit_id, # this.recruitId
                         "testQuestionId": question.questionId, # this.pageList.testQuestion.questionId
                         "isCurrent": '1', # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
                         "lessonId": video.lessonId, # this.lessonId
@@ -379,11 +408,11 @@ class Fucker:
                 report = False # unset report flag
                 # prepare for ev
                 raw_ev = [
-                    ctx.recruit_id,
+                    recruit_id,
                     video.lessonId, # this.lessonId
                     video.id, # this.smallLessonId
                     video.videoId, # this.videoId
-                    ctx.chapter_id, # this.chapterId
+                    video.chapterId, # this.chapterId
                     '0', # this.data.studyStatus, always 0
                     int(played_time-last_submit), # this.playTimes
                     int(played_time), # this.totalStudyTime
@@ -404,9 +433,9 @@ class Fucker:
                 # prepare ev
                 #!! NOTICE: content is different from database
                 raw_ev = [
-                    ctx.recruit_id,
-                    ctx.chapter_id,
-                    ctx.course_id,
+                    recruit_id,
+                    video.chapterId,
+                    course_id,
                     video.lessonId,
                     HMS(seconds=min(video.videoSec, # more realistic
                                     int(played_time+randint(10,20)))),
@@ -426,7 +455,7 @@ class Fucker:
             ### end events
 
             progressBar(played_time, end_time, # have a glance of when quiz is answered
-                    prefix="answering quiz" if answer is not None else f"fucking {video.id}", suffix="of threshold")
+                    prefix="answering quiz" if answer is not None else f"fucking {video.videoId}", suffix="of threshold")
         ##### end main event loop
         time.sleep(random()+1) # old Joe needs more sleep
 
@@ -454,27 +483,42 @@ class Fucker:
 # end of zhidao methods
 #############################################
 # following are methods for hike API
-    def fuckFile(self, course_id, file_id):
-        params = {
-            "courseId": course_id,
-            "fileId": file_id,
-            "_": int(time.time()*1000)
-        }
-        parse_url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/stuViewFile"
-        self.session.get(parse_url, params=params, proxies=self.proxies, timeout=10)
-        time.sleep(random()*2+1) # more human-like
+    def getHikeContext(self, course_id:str, force:bool=False):
+        if course_id in self.context and not force:
+            return self.context[course_id]
+        self._checkCookies()
+        self._sessionReady() # set cookies, headers, proxies
+        url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree"
+        params = {"courseId": course_id}
+        self._hikeQuery(url, params)
+        root = self._hikeQuery(url, params).rt
+        ctx = ObjDict({
+            "root": root,
+            "fucked_time": 0
+        }, default={})
+        self.context[course_id] = ctx
+        return ctx
+    
+    def fuckHikeCourse(self, course_id:str, tree_view:bool=True):
+        tprint = print if tree_view else lambda *a, **k: None
+        begin_time = time.time()
+        root = self.getHikeContext(course_id).root
+        
+        prefix = self.prefix
+        logger.info(f"Fucking Hike course {course_id} (total root chapters: {len(root)})")
+        tprint(f"Fucking course {course_id} (total root chapters: {len(root)})")
+        for chapter in root:
+            self._traverse(course_id, chapter, tree_view=tree_view)
+        logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
+        tprint(f"{prefix}\n{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
 
     def fuckHikeVideo(self, course_id, file_id, prev_time=0):
-        if not self._cookies:
-            logger.warning("No cookies found, please login first")
-            return
-        if self.limit and self.total_studied_time >= self.limit*60:
-                logger.info(f"Studied time limit reached, video {file_id} skipped")
-                raise TimeLimitExceeded(f"{self.limit} minutes")
-
+        self._checkCookies()
+        self._checkTimeLimit(course_id)
+        self._sessionReady() # set cookies, headers, proxies
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
-        self._sessionReady()        # set cookies, headers, proxies
+        ctx = self.getHikeContext(course_id)
 
         #urls
         url       = "https://hike-teaching.zhihuishu.com/stuStudy/saveStuStudyRecord"
@@ -502,7 +546,7 @@ class Fucker:
         # start main loop
         while (prev_time+watched_time) <= end_time:
             time.sleep(1)
-            self.total_studied_time += 1
+            ctx.fucked_time += 1
             watched_time += speed
             watched_time = min(prev_time+watched_time, total_time) - prev_time
             # enter branch when video is finished or interval is reached
@@ -524,32 +568,19 @@ class Fucker:
                 prev_time = info.rt
                 watched_time = 0
             progressBar(watched_time+prev_time, end_time,
-                        prefix=f"watching {file_id}", suffix="of threshold")
+                        prefix=f"fucking {file_id}", suffix="of threshold")
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
         time.sleep(random()+1) # more human-like
-    
-    def fuckHikeCourse(self, course_id:str, tree_view:bool=True):
-        if not self._cookies:
-            logger.warning("No cookies found, please login first")
-            return
-        self._sessionReady()        # set cookies, headers, proxies
-        tprint = print if tree_view else lambda *a, **k: None
 
-        begin_time = time.time()
-        self.total_studied_time = 0
-        url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree"
-        params = {"courseId": course_id}
-        self._hikeQuery(url, params)
-        root = self._hikeQuery(url, params).rt
-        logger.info(f"Fucking Hike course {course_id} (total root chapters: {len(root)})")
-
-        tprint(f"Fucking course {course_id} (total root chapters: {len(root)})")
-        for chapter in root:
-            self._traverse(course_id, chapter, tree_view=tree_view)
-        logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
-
-        prefix = self.prefix
-        tprint(f"{prefix}\n{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
+    def fuckFile(self, course_id, file_id):
+        params = {
+            "courseId": course_id,
+            "fileId": file_id,
+            "_": int(time.time()*1000)
+        }
+        parse_url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/stuViewFile"
+        self.session.get(parse_url, params=params, proxies=self.proxies, timeout=10)
+        time.sleep(random()*2+1) # more human-like
 
     def _traverse(self,course_id, node: ObjDict, depth=0, tree_view=True):
         depth += 1
@@ -600,7 +631,7 @@ class Fucker:
             data["signature"] = sign(data)
         ret = self._apiQuery(url, data, method=method)
         if ok_code is not None and int(ret.status) != ok_code:
-            e = Exception(f"{ret.status} {ret.msg}")
+            e = Exception(f"{ret.status} {ret.message}")
             logger.error(e)
             raise e
         return ret
@@ -642,9 +673,20 @@ class Fucker:
         logger.debug(json.dumps(ret, indent=4, ensure_ascii=False))
         return ret
 
-    def _sessionReady(self):
-        self.session.cookies = self.cookies.copy()
-        self.session.headers = self.headers.copy()
+    def _checkCookies(self):
+        if not self._cookies:
+            e = Exception("No cookies found, please login first")
+            logger.error(e)
+            raise e
+
+    def _checkTimeLimit(self, cid):
+        if self.limit and self.context[cid].fucked_time >= self.limit*60:
+            raise TimeLimitExceeded(f"{self.limit} minutes")
+
+    def _sessionReady(self, ctx:dict=None):
+        ctx = ObjDict(ctx or {}, recursive=False, default={})
+        self.session.cookies = ctx.cookies or self.cookies.copy()
+        self.session.headers = ctx.headers or self.headers.copy()
         self.session.proxies = self.proxies.copy()
 
 

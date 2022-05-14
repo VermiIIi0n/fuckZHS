@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from copy import copy
-
 class ObjDict(dict):
 
     NotExist = object() # for default value
@@ -17,31 +15,33 @@ class ObjDict(dict):
         * `d`: dict
         * `default`: default value to return if key is not found, reset to ObjDict.NotExist to raise KeyError
         '''
-        self.__dict__["antiloop_map"] = antiloop_map or {} # for reference loop safety
+        self.__dict__["_antiloop_map"] = antiloop_map or {} # for reference loop safety
         self.__dict__["_default"] = default
         self.update(d or {}, recursive=recursive)
 
     def update(self, *args, recursive:bool=True, **kw):
-        for arg in args:
-            self.antiloop_map[id(arg)] = self
-            try:
-                for k, v in arg.items():
-                    self[k] = self._convert(v) if recursive else v
-            except AttributeError:
-                raise ValueError('update() takes either a dict or kwargs')
-        for k, v in kw.items():
-            self[k] = self._convert(v) if recursive else v
-        self.antiloop_map = {}
+        try:
+            for arg in args:
+                self._antiloop_map[id(arg)] = self
+                try:
+                    for k, v in arg.items():
+                        self[k] = self._convert(v) if recursive else v
+                except AttributeError:
+                    raise ValueError('update() takes either a dict or kwargs')
+            for k, v in kw.items():
+                self[k] = self._convert(v) if recursive else v
+        finally:
+            self._antiloop_map = {}
 
     def _convert(self, d):
-        if isinstance(d, ObjDict):
-            d.default = self.default
-            return d
-        elif isinstance(d, dict):
-            if id(d) in self.antiloop_map:
-                return self.antiloop_map[id(d)]
+        if isinstance(d, dict):
+            if id(d) in self._antiloop_map:
+                return self._antiloop_map[id(d)]
+            elif isinstance(d, ObjDict):
+                d.default = self.default
+                return d
             else:
-                return ObjDict(d, default=self.default, antiloop_map=self.antiloop_map)
+                return ObjDict(d, default=self.default, antiloop_map=self._antiloop_map)
         elif isinstance(d, list):
             return [self._convert(i) for i in d]
         elif isinstance(d, tuple):
@@ -71,7 +71,8 @@ class ObjDict(dict):
         self.update(self)
 
     def copy(self):
-        return copy(self)
+        """### return a shallow copy"""
+        return ObjDict(self, recursive=False, default=self.default)
 
     def __getattr__(self, name, default=NotExist):
         try:
@@ -82,11 +83,10 @@ class ObjDict(dict):
             raise AttributeError
 
     def __setattr__(self, name, value):
-        if hasattr(self, name):
-            if name in self.__dict__: # cannot just call setattr(self, name, value), recursion error
-                self.__dict__[name] = value
-            else:
-                setattr(type(self), name, value)
+        if name in self.__dict__: # cannot just call setattr(self, name, value), recursion error
+            self.__dict__[name] = value
+        elif hasattr(type(self), name):
+            setattr(type(self), name, value)
         else:
             self[name] = value
 

@@ -25,7 +25,7 @@ else:
 
 # parse auguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
-parser.add_argument("-c", "--course", type=str, help="CourseId or recruitAndCourseId, can be found in URL")
+parser.add_argument("-c", "--course", type=str, nargs="+", help="CourseId or recruitAndCourseId, can be found in URL")
 parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId), can be found in URL, won't work if -c is recruitAndCourseId")
 parser.add_argument("-u", "--username", type=str, help="if not set anywhere, will be prompted")
 parser.add_argument("-p", "--password", type=str, help="If not set anywhere, will be prompted. Be careful, it will be stored in history")
@@ -39,7 +39,7 @@ args = parser.parse_args()
 
 course = args.course
 while not course:
-    course = input("Requires courseId or recruitAndCourseId: ")
+    course = [input("Requires courseId or recruitAndCourseId: ")]
 username = args.username or config.username
 password = args.password or config.password
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
@@ -83,10 +83,10 @@ with open(getRealPath("meta.json"), "r") as f:
     except Exception:
         pass
 
-# create an instance, now we are talking... or fucking
+### create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit or 0)
 
-# first you need to login to get cookies
+### first you need to login to get cookies
 fucker.login(username, password)
 
 # you can add cookies manually by setting cookies property of a Fucker instance
@@ -94,17 +94,24 @@ fucker.login(username, password)
 # fucker.cookies = {}
 
 # auto detect mode
+for c in course:
+    if args.videos:
+        for v in args.videos:
+            try:
+                fucker.fuckVideo(course_id=c, video_id=v)
+                print(f"fucked {v}")
+                args.videos.remove(v)
+            except Exception:
+                pass
+    else:
+        fucker.fuckCourse(course_id=c)
 if args.videos:
-    for v in args.videos:
-        print(f"fucking {v}")
-        fucker.fuckVideo(course_id=course, file_id=v)
-else:
-    fucker.fuckCourse(course_id=course)
+    print(f"the following videos are not fucked: {args.videos}")
     
-# use fuckCourse method to fuck the entire course
+## use fuckCourse method to fuck the entire course
 # fucker.fuckCourse(course_id="")
 
-# or if you want to fuck a video, use fuckVideo method
+## or if you want to fuck a video, use fuckVideo method
 # fucker.fuckVideo(course_id="", file_id="")
 
 # check the source code or README to find more info
