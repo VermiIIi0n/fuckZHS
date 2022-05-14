@@ -34,14 +34,14 @@ class ObjDict(dict):
         self.antiloop_map = {}
 
     def _convert(self, d):
-        if isinstance(d, dict):
+        if isinstance(d, ObjDict):
+            d.default = self.default
+            return d
+        elif isinstance(d, dict):
             if id(d) in self.antiloop_map:
                 return self.antiloop_map[id(d)]
             else:
                 return ObjDict(d, default=self.default, antiloop_map=self.antiloop_map)
-        elif isinstance(d, ObjDict):
-            d.default = self.default
-            return d
         elif isinstance(d, list):
             return [self._convert(i) for i in d]
         elif isinstance(d, tuple):
@@ -62,6 +62,11 @@ class ObjDict(dict):
 
     @default.setter
     def default(self, value):
+        """
+        ### default property
+        * set value to return when key is not found
+        * set to `ObjDict.NotExist` to raise KeyError when key is not found
+        """
         self.__dict__["_default"] = value
         self.update(self)
 

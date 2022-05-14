@@ -20,9 +20,9 @@ def getRealPath(path: str):
     path = os.path.expanduser(path)
     path = os.path.expandvars(path)
     path = os.path.normpath(path)
-    if path == os.path.abspath(path):
-        return os.path.realpath(path)
-    return os.path.join(getDir(), path)
+    if path != os.path.abspath(path):
+        path = os.path.join(getDir(), path)
+    return os.path.realpath(path)
 
 def versionCmp(v1:str, v2:str):
     v1 = v1.split('.')

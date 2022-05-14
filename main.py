@@ -36,13 +36,20 @@ parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
 parser.add_argument("--proxy", type=str, help="HTTP Proxy Server, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
+
 course = args.course
 while not course:
     course = input("Requires courseId or recruitAndCourseId: ")
-logger.setLevel("DEBUG" if args.debug else config.logLevel)
 username = args.username or config.username
 password = args.password or config.password
+logger.setLevel("DEBUG" if args.debug else config.logLevel)
 proxies = config.proxies
+
+if logger.getLevel() == "DEBUG":
+    print("*****************************\n"+
+          "DEBUG MODE ENABLED\n"+
+          "SENSITIVE DATA WILL BE LOGGED\n"+
+          "*****************************\n")
 
 if args.proxy: # parse proxy
     scheme = re.search(r"^(\w+)://", args.proxy.strip())
@@ -62,17 +69,17 @@ if args.proxy: # parse proxy
 
 # check update
 with open(getRealPath("meta.json"), "r") as f:
-    try:
-        j = ObjDict(json.load(f))
-        url = f"https://raw.githubusercontent.com/{j.author}/fuckZHS/{j.branch}/meta.json"
+    try: # some exceptions won't be caught by 'with'
+        m = ObjDict(json.load(f))
+        url = f"https://raw.githubusercontent.com/{m.author}/fuckZHS/{m.branch}/meta.json"
         r = ObjDict(requests.get(url, proxies=proxies, timeout=5).json())
-        current = j.version
+        current = m.version
         latest = r.version
         if versionCmp(current, latest) < 0:
             print("*********************************\n"+
-                f"New version available: {latest}\n"+
-                f"Current version: {current}\n"+
-                "*********************************\n")
+                 f"New version available: {latest}\n"+
+                 f"Current version: {current}\n"+
+                  "*********************************\n")
     except Exception:
         pass
 
