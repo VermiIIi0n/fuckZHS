@@ -56,6 +56,11 @@
   "logLevel": "INFO"
 }
 ```
+* `username`: 账号 
+* `password`: 密码
+* `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](#常见问题)
+* `logLevel`: 日志等级, 可选 `DEBUG` `INFO` `WARNING` `ERROR`
+
 填入账号密码即可无干预自动登入, 否则会需要交互输入缺失信息  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
@@ -121,12 +126,20 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 * 登入失败
   * 检查您的账号密码是否有误
   * 先用浏览器登入一次看看, 可能您的 IP 地址被认为是异地了, 需要短信验证
+  * 解决 SSL 证书错误
+    * 见下文
 * 请求响应信息: “需要滑块验证” (触发原因不明)
   * 浏览器登入后手动过一次验证
+  * 降低单次学习的时间
+  * 本脚本会随机暂停一分钟以缓解这个问题, 您可以在源码中增加概率
 * 请求响应代码: -1
   * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
 * 语法错误
   * 喂, 伙计, _Python_ 版本对了没?
+* SSL证书错误, _Windows_ 上开着 _Clash_ 之类的代理可能会报证书错误
+  * 关闭代理选项
+  * _Clash_ 改为 TUN 模式, 且关闭系统代理, 相当于改成透明代理
+  * 配置文件中编辑 `"proxies":{"https":""}`
 * 其他错误
   * 建议先开启 DEBUG 模式, 自行查看报错信息, 如果确实是我的锅就劳烦开个 issue
 
@@ -145,7 +158,54 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 * meta.json: 包含版本和分支等信息, 也用于更新检查
 * decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
 ##### Fucker Class Structure:  
-![structure](./images/struct.png)  
+```Python
+class Fucker:
+    def __init__(self, cookies: dict = None,
+                 headers: dict = None,
+                 proxies: dict = None,
+                 limit: int = 0,
+                 speed: float = None,
+                 end_thre: float = None)...
+
+    @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
+    def cookies(self)...
+    @cookies.setter
+    def cookies(self, cookies: dict|requests.cookies.RequestsCookieJar)...
+
+    def login(self, username: str=None, password: str=None, interactive: bool=True)...
+    def fuckCourse(self, course_id:str, tree_view:bool=True)...
+    def fuckVideo(self, course_id, video_id:str)...
+#############################################
+# for some fucking reasons
+# there are 2 sets of completely different API for hike.zhihuishu.com and studyservice-api.zhihuishu.com
+# so we need to use different methods for different API
+#############################################
+# following are methods for studyservice-api.zhihuishu.com API
+    def getZhidaoContext(self, RAC_id:str, force:bool=False)... 
+    def fuckZhidaoCourse(self, RAC_id:str, tree_view:bool=True)...
+    def fuckZhidaoVideo(self, RAC_id, video_id)...
+    def answerZhidao(self, q:dict)...
+    def _zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
+               setTimeStamp:bool=True, method:str="POST")...
+# end of zhidao methods
+#############################################
+# following are methods for hike API
+    def getHikeContext(self, course_id:str, force:bool=False)...
+    def fuckHikeCourse(self, course_id:str, tree_view:bool=True)...
+    def fuckHikeVideo(self, course_id, file_id, prev_time=0)...
+    def fuckFile(self, course_id, file_id)...
+    def _traverse(self,course_id, node: ObjDict, depth=0, tree_view=True)...
+    def _hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
+                   setTimeStamp:bool=True, method:str="GET")...
+# end of hike methods
+#######################################
+# shared private methods
+    def _watchVideo(self, video_id)... # it's probably unnecessary but let's keep it to fool those idiots
+    def _apiQuery(self, url:str, data:dict, method:str="POST")...
+    def _checkCookies(self)...
+    def _checkTimeLimit(self, cid)...
+    def _sessionReady(self, ctx:dict=None)...
+```
 我的很大, 你忍一下(指类定义)
 ***
 ## 后记

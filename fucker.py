@@ -64,8 +64,6 @@ class Fucker:
             "sec-ch-ua-mobile": "?0",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36",
             "sec-ch-ua-platform": "macOS",
-            "Origin": "https://hike.zhihuishu.com",
-            "Referer": "https://hike.zhihuishu.com/",
             "Accept-Encoding": "gzip, deflate, br",
             "Accept-Language": "en-GB,en;q=0.9"
         }
@@ -103,9 +101,11 @@ class Fucker:
                 raise ValueError("Cookies invalid")
         logger.debug(f"set cookies: {self._cookies}")
 
-    def login(self, username: str=None, password: str=None):
-        """empty value will be prompted"""
+    def login(self, username: str=None, password: str=None, interactive: bool=True):
+        """* `interactive`: whether to use interactive mode to login"""
         while not username or not password:
+            if not interactive:
+                raise ValueError("username or password being empty")
             if not username:
                 username = input("Username: ")
             else:
@@ -137,10 +137,9 @@ class Fucker:
                 raise Exception("No cookies found")
 
             logger.info("Login successful")
-            print("Login successful")
         except Exception as e:
-            logger.error(f"Login failed: {e}")
-            raise Exception("Login failed: {e}")
+            logger.exception(e)
+            raise Exception(f"Login failed: {e}")
 
     def fuckCourse(self, course_id:str, tree_view:bool=True):
         """
@@ -179,7 +178,7 @@ class Fucker:
         if RAC_id in self.context and not force:
             return self.context[RAC_id]
         self._checkCookies()
-        logger.info(f"Getting context for {RAC_id}")
+        logger.debug(f"Getting context for {RAC_id}")
 
         self._sessionReady()        # set cookies, headers, proxies
         self.session.headers.update({
@@ -286,7 +285,8 @@ class Fucker:
                     except Exception as e:
                         logger.exception(e)
                         tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
-        tprint(f"{prefix}\n{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
+        tprint(prefix)
+        tprint(f"{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
     
     def fuckZhidaoVideo(self, RAC_id, video_id):
         """
@@ -360,6 +360,7 @@ class Fucker:
         answer = None       # answer flag, do not modify
         report = False      # report flag, do not modify
         watch_point = "0,1" # watch point, do not modify
+        pause = 0           # pause flag, do not modify
 
         ##### start main event loop, sort of...
         while played_time < end_time:
@@ -367,7 +368,8 @@ class Fucker:
             ctx.fucked_time += 1 # for time limit check
             elapsed_time += 1
             played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
-            report = random() < 0.0025 # emulating random pause
+            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, avoid detection
+            report = report or pause == 60  # report on pause
 
             ### events
             ## get questions
@@ -398,7 +400,7 @@ class Fucker:
                         "testType": 0 # always 0
                     })
                 else:
-                    played_time -= speed # emulate pause on pop quiz
+                    pause = pause or 1 # emulate pause on pop quiz
                     answer -= 1
             ## update watch point
             if elapsed_time % wp_interval == 0:
@@ -452,10 +454,17 @@ class Fucker:
                 self._zhidaoQuery(cache_url, data=data) # now submit to cache
                 last_submit = played_time # update last pause time
                 watch_point = "0,1"       # reset watch point
+            ## on pause
+            if pause:
+                pause -= 1
+                played_time = last_submit
             ### end events
-
-            progressBar(played_time, end_time, # have a glance of when quiz is answered
-                    prefix="answering quiz" if answer is not None else f"fucking {video.videoId}", suffix="of threshold")
+            # print progress bar
+            s, e = [60-pause, 60] if pause else [played_time, end_time]
+            # have a glance of when quiz is answered
+            action = "pause a minute" if pause else \
+                    f"fucking {video.videoId}" if answer is None else "answering quiz"
+            progressBar(s, e, prefix=action, suffix="done")
         ##### end main event loop
         time.sleep(random()+1) # old Joe needs more sleep
 
@@ -471,11 +480,13 @@ class Fucker:
         cipher = Cipher()
         if setTimeStamp:
             data["dateFormate"] = int(time.time())*1000 # somehow their timestamps are ending with 000
-        logger.debug(f"{method} url: {url}\nraw_data: {json.dumps(data, indent=4, ensure_ascii=False)}")
+        logger.debug(f"{method} url: {url}\nraw_data: {json.dumps(data,indent=4,ensure_ascii=False)}")
         form ={"secretStr": cipher.encrypt(json.dumps(data))} if encrypt else data
         ret = self._apiQuery(url, data=form, method=method)
         if ok_code is not None and ret.code != ok_code:
-            e = Exception(ret.message)
+            ret.default = None
+            e = Exception(f"code: {ret.code} "+
+                          f"msg: {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
             logger.error(e)
             raise e
         return ret
@@ -488,12 +499,18 @@ class Fucker:
             return self.context[course_id]
         self._checkCookies()
         self._sessionReady() # set cookies, headers, proxies
+        self.session.headers.update({
+            "Origin": "https://hike.zhihuishu.com",
+            "Referer": "https://hike.zhihuishu.com/"
+        })
         url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree"
         params = {"courseId": course_id}
         self._hikeQuery(url, params)
         root = self._hikeQuery(url, params).rt
         ctx = ObjDict({
             "root": root,
+            "cookies": self.session.cookies.copy(),
+            "headers": self.session.headers.copy(),
             "fucked_time": 0
         }, default={})
         self.context[course_id] = ctx
@@ -510,7 +527,8 @@ class Fucker:
         for chapter in root:
             self._traverse(course_id, chapter, tree_view=tree_view)
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
-        tprint(f"{prefix}\n{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
+        tprint(prefix)
+        tprint(f"{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
 
     def fuckHikeVideo(self, course_id, file_id, prev_time=0):
         self._checkCookies()
@@ -631,7 +649,8 @@ class Fucker:
             data["signature"] = sign(data)
         ret = self._apiQuery(url, data, method=method)
         if ok_code is not None and int(ret.status) != ok_code:
-            e = Exception(f"{ret.status} {ret.message}")
+            ret.default = None
+            e = Exception(f"{ret.status} {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
             logger.error(e)
             raise e
         return ret
@@ -656,7 +675,7 @@ class Fucker:
 
     def _apiQuery(self, url:str, data:dict, method:str="POST"):
         method = method.upper()
-        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data, indent=4, ensure_ascii=False)}\n"+
+        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data,indent=4,ensure_ascii=False)}\n"+
                      f"headers: {json.dumps(self.headers, indent=4)}\n"+
                      f"cookies: {self.session.cookies}\n"+
                      f"proxies: {json.dumps(self.session.proxies, indent=4)}")
@@ -684,9 +703,7 @@ class Fucker:
             raise TimeLimitExceeded(f"{self.limit} minutes")
 
     def _sessionReady(self, ctx:dict=None):
-        ctx = ObjDict(ctx or {}, recursive=False, default={})
+        ctx = ObjDict(ctx or {}, recursive=False, default=False)
         self.session.cookies = ctx.cookies or self.cookies.copy()
         self.session.headers = ctx.headers or self.headers.copy()
         self.session.proxies = self.proxies.copy()
-
-

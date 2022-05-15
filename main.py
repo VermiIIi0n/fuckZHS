@@ -26,20 +26,23 @@ else:
 # parse auguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
 parser.add_argument("-c", "--course", type=str, nargs="+", help="CourseId or recruitAndCourseId, can be found in URL")
-parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId), can be found in URL, won't work if -c is recruitAndCourseId")
+parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId in URL, or, videoId found in API response")
 parser.add_argument("-u", "--username", type=str, help="if not set anywhere, will be prompted")
 parser.add_argument("-p", "--password", type=str, help="If not set anywhere, will be prompted. Be careful, it will be stored in history")
-parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default value is maximum speed when watching in browser")
+parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default value is maximum speed found on site")
 parser.add_argument("-t", "--threshold", type=float, help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
-parser.add_argument("-l", "--limit", type=int, help="Time Limit (in minutes, 0 for no limit), default is 0")
+parser.add_argument("-l", "--limit", type=int, default=0, help="Time Limit (in minutes, 0 for no limit), default is 0")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
-parser.add_argument("--proxy", type=str, help="HTTP Proxy Server, e.g: http://127.0.0.1:8080")
+parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
 
 course = args.course
-while not course:
+if not course:
     course = [input("Requires courseId or recruitAndCourseId: ")]
+if not course[0]:
+    print("*CourseId or recruitAndCourseId is required")
+    exit(1)
 username = args.username or config.username
 password = args.password or config.password
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
@@ -54,7 +57,8 @@ if logger.getLevel() == "DEBUG":
 if args.proxy: # parse proxy
     scheme = re.search(r"^(\w+)://", args.proxy.strip())
     if scheme is None:
-        raise ValueError("Invalid proxy, can't parse scheme")
+        print("*Invalid proxy, can't parse scheme")
+        exit(1)
     scheme = scheme.group(1).lower()
     match scheme:
         case "http"|"https":
@@ -65,7 +69,8 @@ if args.proxy: # parse proxy
         case "socks5":
             proxies["socks5"] = args.proxy
         case _:
-            raise ValueError("Unsupported proxy type")
+            print(f"*Unsupported proxy type: {scheme}")
+            exit(1)
 
 # check update
 with open(getRealPath("meta.json"), "r") as f:
@@ -81,13 +86,18 @@ with open(getRealPath("meta.json"), "r") as f:
                  f"Current version: {current}\n"+
                   "*********************************\n")
     except Exception:
-        pass
+        print("*Failed to check update\n")
 
 ### create an instance, now we are talking... or fucking
-fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit or 0)
+fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit)
 
 ### first you need to login to get cookies
-fucker.login(username, password)
+try:
+    fucker.login(username, password)
+    print("Login Successful\n")
+except Exception as e:
+    print(e)
+    exit(1)
 
 # you can add cookies manually by setting cookies property of a Fucker instance
 # notice that cookies of zhihuishu.com expires if you login again in somewhere else
@@ -106,7 +116,7 @@ for c in course:
     else:
         fucker.fuckCourse(course_id=c)
 if args.videos:
-    print(f"the following videos are not fucked: {args.videos}")
+    print(f"*the following videos are not fucked: {args.videos}")
     
 ## use fuckCourse method to fuck the entire course
 # fucker.fuckCourse(course_id="")
