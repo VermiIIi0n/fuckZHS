@@ -1,52 +1,54 @@
 ## ZHS Fucker 食用指北
 
-#### WTF?
+### WTF?
 这是一个 _Python3_ 的自动脚本, 用于自动刷智慧树课堂课程, 为您节约有限的生命.
 
 **Features**
-* 支持翻转课与知到共享学分课
+* 支持校内学分课与知到共享学分课
 * 自动回答弹题
 * 设定时限
 * 射后不管, 无需交互
 ***
-#### WHY?
-自从智慧树的翻转课(hike)播放页面用了个窒息的 _JavaScript_ 混淆之后, 各种前端的脚本都没法用了.  
-因为它会检查 _DevTools_ 是否打开, 如果开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
-于是我打算直接抄家, 入它后端(*), 所以便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
+### WHY?
+自从智慧树的校内学分课(i.e. hike)播放页面用了个窒息的 _JavaScript_ 混淆之后, 大部分前端的脚本都没法用了.  
+因为它会检查 _DevTools_ 是否打开, 如果打开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
+于是我打算直接抄家, 入它后端(*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
 ***
-#### 重要更新
+### 重要更新
 -> v2.0.0:
-1. 新增 知到 API(studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
-2. 移除依赖 _selenium_ , 使用 _selenium_ 的版本将移入其他分支, 随缘更新
+1. 新增 知到共享学分课 API(studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
+2. 移除依赖 _selenium_
 3. 新增依赖 _pycryptodome_
 ***
-#### 准备工作
+### 准备工作
 您需要准备以下东西
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
 * _requests_ 
 * _pycryptodome_ 或其等价替代
 
-装好 _Python_ 后执行 `pip install -r requirements.txt` 即可
+执行 `pip install -r requirements.txt` 即可安装依赖
 ***
-#### 如何使用
+### 如何使用
 
 本块分为
 
-1. `Login`: 获取 `Cookies`
-   * 命令行登入
-     * 配置文件
-     * 参数
-   * `API` 登入
+0. Ultra Quick Start: 执行 `python main.py`
+   * 仅以交互输入信息, 除非开 DEBUG 模式否则不留任何敏感记录
+
+1. `Login`: 输入账号与密码
+   * 使用配置文件
+   * 使用命令行参数
 
 2. `Fxxking`: 开干
-   * 命令行用例
-   * `API` 用例
+   * 使用命令行参数
+   * 参数列表
 
-*`API`: _用于单独使用模块_
+3. `API` 简易文档: _用于单独使用模块_
 
-##### Login
-如果您能自己得到 `Cookies` 就可以略过, 直接给 `Fucker` 实例的 `cookies` 属性赋值即可
-###### 常规方式指北:  
+#### Login
+  _*如果非常用地登入会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单._  
+  _**信息优先级: 命令行 > 配置文件 > 交互输入_  
+##### 使用配置文件:  
 配置文件 _config.json_ 中有以下字段:
 ```JSON
 {
@@ -59,34 +61,24 @@
 * `username`: 账号 
 * `password`: 密码
 * `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](#常见问题)
-* `logLevel`: 日志等级, 可选 `DEBUG` `INFO` `WARNING` `ERROR`
+* `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL` 
 
-填入账号密码即可无干预自动登入, 否则会需要交互输入缺失信息  
+填入账号密码即可无干预自动登入  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
-也可以使用命令行参数登入, 但要注意密码将会明文留在记录中, 故不推荐使用 `-p`
+##### 使用命令行参数登入
 ```bash
-python main.py -c <course id> -u <username> -p <password>
+python main.py -u <username> -p <password>
 ```
-_*如果非常用地登入会需要短信验证, 您应该先手动登入一次, 以让您的所在地列入白名单._  
-_**优先级: 命令行 > 配置文件_
+* `-u` `--username`: 账号
+* `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p`  
+_*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_
 
-###### `API` 指北:  
-_Python3_ 登入样例
-```Python
-from fucker import Fucker
-fucker = Fucker()
-fucker.login(username:str, password:str)
-
-fucker.cookies = {}
-# 如果您不想使用 login
-# 也可直接传入符合 requests 库要求的 cookies
-# 该 cookies 会覆盖原有值, 同时请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
-```
 ***
-##### Fxxking
-###### 常规方式指北:  
-登入之后就可以开干，例如您想要干 ID 为 `"114514"` 的课程，可以这样做:
+#### Fxxking
+##### 命令行指北:  
+**以下假设您已经在配置文件中输入必要信息**  
+  _*信息优先级: 命令行 > 配置文件 > 交互输入_  
 ```bash
 cd fuckZHS
 python main.py -c 114514 # -c 缺省将需要交互输入课程 ID
@@ -98,15 +90,52 @@ python main.py -c 114514 -d --proxy http://127.0.0.1:2333
 python main.py -c 114514 -v 4060 9891
 ```
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
-  _*课程 ID 为网址中的 `courseId`(翻转课) 或 `recruitAndCourseId`(共享学分课) 参数_  
+  _*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数_  
   _**更多选项请使用 `-h` 查看._  
-  _***优先级: 命令行 > 配置文件_  
+
+##### 命令行参数列表
+* `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
+* `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
+* `-u`, `--username`: 账号
+* `-p`, `--password`: 密码
+* `-s`, `--speed`: ~~**SPEEEEED AND POWERRRR!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
+* `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成
+* `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
+* `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 ***(可能包含账号密码, 别乱分享, 当心被盒武)***
+* `--proxy`: 代理设置, 本来用来调试的(e.g. http://127.0.0.1:8080)
+* `-h` `--help`: 显示帮助
 
 运行示例如下:
-![运行示例](./images/running.png)
+![运行示例](./images/running.png)  
+***
+#### 常见问题
+* 登入失败
+  * 检查您的账号密码是否有误
+  * 先用浏览器登入一次看看, 可能您的 IP 地址被认为是异地了, 需要短信验证
+  * 解决 SSL 证书错误, 见下文
+* 请求响应: -12 "需要滑块验证" (触发原因不明)
+  * 浏览器登入后手动过一次验证
+  * 降低单次学习的时间
+  * 本脚本会随机暂停一分钟以缓解这个问题, 您可以在源码中增加概率
+* 请求响应: -1 "无法处理请求"
+  * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
+* 语法错误
+  * 喂, 伙计, _Python_ 版本对了没?
+* SSL证书错误, _Windows_ 上开着 _Clash_ 之类的代理可能会报证书错误
+  * 直接关闭系统代理
+  * 将 _Clash_ 改为 TUN 模式, 且关闭系统代理, 相当于改成透明代理, 不影响上网 ***(推荐)***
+  * 配置文件中编辑 `"proxies":{"https":""}`
+* 还是无法解决?
+  * 建议先开启 DEBUG 模式, 自行查看报错信息, 如果确实是我的锅就劳烦开个 issue
+  * 解决提出问题的人 ***(推荐)***
+  * ***JUST DO IT!***  
+    ![JUST_DO_IT](./images/just_do_it.jpg)
 
-###### `API` 指北:  
-一段伪示例如下
+指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
+***
+#### `API` 简介
+详见源码
+###### 实例化 `Fucker`:  
 ```Python
 from fucker import Fucker
 
@@ -114,39 +143,47 @@ fucker = Fucker()
 # 或者更进阶一些
 fucker = Fucker(speed=1.5, end_thre=0.91)
 # 以上控制播放速度以及终止临界值
-# speed: 翻转课播放速度正常最高为1.25, 知到课为1.5, 但似乎更高的服务器也接受, 不过怕暴露就谨慎些吧
+# speed: 校内学分课播放速度正常最高为1.25, 共享学分课为1.5, 但似乎更高的服务器也接受, 不过怕暴露就谨慎些吧
 # end_thre: 智慧树把高于一定百分比的进度视为完成, 0.91 保险一点
 # 以上俩参数仅对视频有效, 其他的内容就只有进度0或1
-fucker.login()
-fucker.fuckCourse(courseId) # 把整个课程都干了
-fucker.fuckVideo(courseId, fileId) # 只干一个视频
 ```
-***
-#### 常见问题
-* 登入失败
-  * 检查您的账号密码是否有误
-  * 先用浏览器登入一次看看, 可能您的 IP 地址被认为是异地了, 需要短信验证
-  * 解决 SSL 证书错误
-    * 见下文
-* 请求响应信息: “需要滑块验证” (触发原因不明)
-  * 浏览器登入后手动过一次验证
-  * 降低单次学习的时间
-  * 本脚本会随机暂停一分钟以缓解这个问题, 您可以在源码中增加概率
-* 请求响应代码: -1
-  * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
-* 语法错误
-  * 喂, 伙计, _Python_ 版本对了没?
-* SSL证书错误, _Windows_ 上开着 _Clash_ 之类的代理可能会报证书错误
-  * 关闭代理选项
-  * _Clash_ 改为 TUN 模式, 且关闭系统代理, 相当于改成透明代理
-  * 配置文件中编辑 `"proxies":{"https":""}`
-* 其他错误
-  * 建议先开启 DEBUG 模式, 自行查看报错信息, 如果确实是我的锅就劳烦开个 issue
+##### `login` Method:
+如果您能自己得到 `Cookies` 就可以略过, 直接给 `Fucker` 实例的 `cookies` 属性赋值即可
+_Python3_ 登入样例
+```Python
+fucker.login(username:str, password:str)
+fucker.login(username:str, password:str, interactive=False) # 禁用交互, 在账号或密码为空时引发异常
 
-指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
+# 如果您不想使用 login
+# 也可直接传入符合 requests 库要求的 cookies
+fucker.cookies = {key: "Angel Beats!", "inside Uncle's eyes": value}
+# 该 cookies 会覆盖原有值, 同时请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
+```
+##### `fuckCourse` Methods Family:  
+```Python
+fucker.fuckCourse(course_id:str) # 把整个课程都干了
+fucker.fuckCourse(course_id:str, tree_view=False) # 把整个课程都干了, 但不显示树状视图
+fucker.fuckZhidaoCourse(recruitAndCourseId) # 点名就要干知到共享学分课
+fucker.fuckHikeCourse(courseId) # 点名就要干校内学分课(hike)
+```
+##### `fuckVideo` Methods Family:
+```Python
+fucker.fuckVideo(course_id, video_id) # 指定干某节课里某视频
+fucker.fuckZhidaoVideo(recruitAndCourseId, videoId) # 这里的 videoId 是从 网页API响应 中获得的
+fucker.fuckHikeVideo(courseId, fileId) # 这俩就在 校内学分课(hike) 网址里
+```
+##### `getContext` Methods Family:
+```Python
+fucker.getZhidaoContext(recruitAndCourseId)
+fucker.getHikeContext(courseId)
+fucker.getHikeContext(courseId, force=True) # 强制更新context并重置课程学习时间(本地记录)
+```
+自动在 `fuck*Course` `fuck*Video` 中被调用  
+返回一个 `dict`, 内含该 ID 对应课程的必要信息以及实例运行后学习该课的总时间, 必要信息没有的话会向服务器请求并重置学习时间    
+该 `dict` 结构请见源码
 ***
-#### 结构介绍
-##### 文件结构:
+### 结构介绍
+#### 文件结构:
 * main.py: 命令行主函数
 * sign.py: 负责生成 hike API 所需的 `signature` 参数
 * utils.py: 一些常用工具
@@ -157,7 +194,7 @@ fucker.fuckVideo(courseId, fileId) # 只干一个视频
 * config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
 * meta.json: 包含版本和分支等信息, 也用于更新检查
 * decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
-##### Fucker Class Structure:  
+#### Fucker Class Structure:  
 ```Python
 class Fucker:
     def __init__(self, cookies: dict = None,
@@ -212,12 +249,12 @@ class Fucker:
 这一段算是授之以渔吧, 毕竟网站以后更新可能会改内容, 我又没时间更新, 就先把思路写在这. 但要注意, 下文提到的混淆肯定引入了随机量, 不可完全照搬该思路.  
 过程中用到的文件样本大多都在 _decrypt_ 目录下压缩档里.
 
-***以下内容仅针对翻转课的 `API` ("hike" 开头的域名)***
+***以下内容仅针对校内学分课的 `API` ("hike" 开头的域名)***
 
-#### chapter 0: Too Young Too Naive
-本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付翻转课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
+### chapter 0: Too Young Too Naive
+本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付校内学分课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
 
-##### 捉包:
+#### 捉包:
 总之先捉个包看看前端怎么和服务器交流, 没想到一开浏览器开发者模式就遇到了问题.  
 一旦监测到 _DevTools_, 网页界面就立即停止响应.  
 但这还不简单, 手动把相关 _JavaScript_ 无脑删不就行, 源码都在我手上有什么好怕的.
@@ -238,7 +275,7 @@ _好家伙《乱码1/2》_
 _*敏感信息被替换了_  
 您看看这些人多不专业, 拿 `GET` 干 `POST` 的活, 而且那个 `uuid` 根本就不是真的 UUID, 七八个随机字符而已.  
 
-##### 模拟请求:
+#### 模拟请求:
 不过我们一路顺风, 成功就在眼前(flag++).  
 这时可以看到一个正常的响应是:
 ```JSON
@@ -272,12 +309,12 @@ _*敏感信息被替换了_
 
 没办法, 开始人生第一次反混淆 _JavaScript_ 吧...
 ***
-#### chapter 1: At Beginning, It's Just Chaos
+### chapter 1: At Beginning, It's Just Chaos
 下图开头这个站点名就是万恶之源了, 话说为什么叫“加密”, 只是混淆而已, 和加密相差太远了, 只能说连名字都取的很 Obfuscated.
 
 首先得把这些诡异变量重命名一下, 在 [_这个站点_](https://deobfuscate.io) 可以初步反混淆, 去掉一些简单的函数 wrapping 并重命名变量, 新变量名当然是随机的, 只是好读一些.
 
-##### 初步反混淆:
+#### 初步反混淆:
 ![level0](./images/level0.png)
 这下好多了, 我们可以看 ***不*** 到开头有一行超大的列表(太长了就只截了前几个), 不过它大概有 1.4k 个**字符串**,  
 看起来是 Base64, 解码后是乱码, 是被加密了(真·加密).
@@ -322,7 +359,7 @@ _JavaScript_ 原版其实在 Base64 解码后, 还有个手动把内容 URLEncod
 接着发现程式开头有一段循环, 把列表开头和结尾的俩无意义的东西扔了, 顺带把这个列表旋转了138位, 用 _Python_ 表示就是 `deque.rotate(-138)`  
 这个值是好像是固定的, 但保不准以后会变   
 
-##### 解读解密后代码:
+#### 解读解密后代码:
 解密并替换内容后的文件:
 ![level2](./images/level2.png)
 
@@ -354,7 +391,7 @@ if (false){
   
 ```
 ***
-#### chapter 2: Let There = Light
+### chapter 2: Let There = Light
 总算看见曙光了, 但要继续解读的话, 这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的, 重复的部分:
 
 ![level3](./images/level3.png)
@@ -384,7 +421,7 @@ function jobany(params) {
 **盐**(bushi):
 ![Shio](./images/Shiochan.webp)
 ***
-#### chapter 3: small step, Giant Leap
+### chapter 3: small step, Giant Leap
 为了个区区 `signature` 废了好大功夫  
 不过有了这个我们可以自己签名了, 没想到人都这么大了还靠在自己作业上签名来骗人
 ```Python

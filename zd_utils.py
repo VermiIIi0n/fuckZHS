@@ -31,16 +31,35 @@ class Cipher:
         cipher = AES.new(self.key, AES.MODE_CBC, self.iv)
         return self.unpad(cipher.decrypt(b64decode(data)))
 
-def getWP(start:int, end:int):
-    wp = "0,1"
-    for i in range(start, end)[::2]:
-        wp += f",{i//5+2}"
-    return wp
+class WatchPoint:
+    def __init__(self, init:int=0):
+        self.reset(init)
+
+    def add(self, end:int, start:int=0):
+        wp_interval = 2 # watch point record interval in seconds
+        start = int(start) or self.last
+        end = int(end)
+        self.last = end
+        for i in range(start, end+1)[::wp_interval]:
+            self.wp.append(self.gen(i))
+
+    def get(self):
+        return ','.join(list(map(str,self.wp)))
+
+    def reset(self, init:int=0):
+        self.wp = [0,1]
+        self.last = int(init) or 1
+    
+    @staticmethod
+    def gen(time:int):
+        return int(time//5+2)
+
 
 def getEv(data:list, key:str="zzpttjd"):
     """
-    key: d26666->zzpttjd (default)
-         d24444->zhihuishu
+    * key:
+      * d26666 -> "zzpttjd" (default)
+      * d24444 -> "zhihuishu"
     """
     def gen():
         while True:
@@ -82,9 +101,14 @@ if __name__ == "__main__":
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
     #print(getEv([1,2,3,4,'你']))
-    d = ""
-    r = ObjDict(json.loads(v.decrypt(d)))
-    print(r)
+    d = "F7QU+AhkFOtvTMIQjtnNpw=="
+    #r = ObjDict(json.loads(h.decrypt(d)))
+    #print(r)
     #print(r.watchPoint)
-    print(revEv(r.ev))
-    #print(getWP(61, 321))
+    #print(revEv(r.ev))
+    wp = WatchPoint(61)
+    wp.add(321)
+    print(wp.get())
+    for i in range(30):
+        wp.add(321)
+    print(wp.get())

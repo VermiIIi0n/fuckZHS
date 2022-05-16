@@ -1,6 +1,6 @@
-from zd_utils import Cipher, getEv, HOME_KEY, VIDEO_KEY, QA_KEY
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
+from zd_utils import Cipher, getEv, WatchPoint
 from utils import progressBar, HMS
 from random import randint, random
 from threading import Thread
@@ -178,7 +178,7 @@ class Fucker:
         if RAC_id in self.context and not force:
             return self.context[RAC_id]
         self._checkCookies()
-        logger.debug(f"Getting context for {RAC_id}")
+        logger.info(f"Getting context for {RAC_id}")
 
         self._sessionReady()        # set cookies, headers, proxies
         self.session.headers.update({
@@ -351,16 +351,14 @@ class Fucker:
 
         # prepare vars
         speed = self.speed or 1.5  # default speed for Zhidao is 1.5
-        start_at = played_time     # video time at start
         last_submit = played_time  # last pause time
         elapsed_time = 0    # real world time elapsed
-        wp_interval = 2     # watch point update interval
         db_interval = 30    # database report interval
         cache_interval = 18 # cache report interval
         answer = None       # answer flag, do not modify
         report = False      # report flag, do not modify
-        watch_point = "0,1" # watch point, do not modify
         pause = 0           # pause flag, do not modify
+        wp = WatchPoint()   # watch point, do not modify
 
         ##### start main event loop, sort of...
         while played_time < end_time:
@@ -368,7 +366,7 @@ class Fucker:
             ctx.fucked_time += 1 # for time limit check
             elapsed_time += 1
             played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
-            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, avoid detection
+            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, may avoid detection
             report = report or pause == 60  # report on pause
 
             ### events
@@ -402,12 +400,10 @@ class Fucker:
                 else:
                     pause = pause or 1 # emulate pause on pop quiz
                     answer -= 1
-            ## update watch point
-            if elapsed_time % wp_interval == 0:
-                watch_point += f",{int((played_time-start_at)/5)+2}"
             ## report to database
             if elapsed_time % db_interval == 0 or played_time >= end_time or report:
                 report = False # unset report flag
+                wp.add(played_time)
                 # prepare for ev
                 raw_ev = [
                     recruit_id,
@@ -423,15 +419,16 @@ class Fucker:
                 ]
                 # prepare payload
                 data = {
-                    "watchPoint": watch_point,
+                    "watchPoint": wp.get(),
                     "ev": getEv(raw_ev),
                     "learningTokenId": token_id
                 }
                 self._zhidaoQuery(record_url, data=data) # now submit to database
                 last_submit = played_time # update last pause time
-                watch_point = "0,1"       # reset watch point
+                wp.reset(played_time)     # reset watch point
             ## report to cache
             if elapsed_time % cache_interval == 0:
+                wp.add(played_time)
                 # prepare ev
                 #!! NOTICE: content is different from database
                 raw_ev = [
@@ -447,17 +444,18 @@ class Fucker:
                     int(played_time-last_submit),
                 ]
                 data = {
-                    "watchPoint": watch_point,
+                    "watchPoint": wp.get(),
                     "ev": getEv(raw_ev),
                     "learningTokenId": token_id
                 }
                 self._zhidaoQuery(cache_url, data=data) # now submit to cache
                 last_submit = played_time # update last pause time
-                watch_point = "0,1"       # reset watch point
+                wp.reset(played_time)     # reset watch point
             ## on pause
             if pause:
                 pause -= 1
                 played_time = last_submit
+                wp.add(played_time)
             ### end events
             # print progress bar
             s, e = [60-pause, 60] if pause else [played_time, end_time]
