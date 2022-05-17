@@ -33,16 +33,12 @@ parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default
 parser.add_argument("-t", "--threshold", type=float, help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
 parser.add_argument("-l", "--limit", type=int, default=0, help="Time Limit (in minutes, 0 for no limit), default is 0")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
+parser.add_argument("-f", "--fetch", action="store_true", help="Fetch new course list")
 parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
 
 course = args.course
-if not course:
-    course = [input("Requires courseId or recruitAndCourseId: ")]
-if not course[0]:
-    print("*CourseId or recruitAndCourseId is required")
-    exit(1)
 username = args.username or config.username
 password = args.password or config.password
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
@@ -103,7 +99,30 @@ except Exception as e:
 # notice that cookies of zhihuishu.com expires if you login again in somewhere else
 # fucker.cookies = {}
 
-# auto detect mode
+exec_list = getRealPath("execution.json")
+### fetch course list
+if args.fetch:
+    with open(exec_list, "w") as f:
+        zhidao_ids = [{"name": c.courseName, "id": c.secret} for c in fucker.getZhidaoList()]
+        hike_ids = [{"name": c.courseName, "id": str(c.courseId)} for c in fucker.getHikeList()]
+        json.dump(zhidao_ids + hike_ids, f, indent=4, ensure_ascii=False)
+    exit(0)
+
+### get courses from file if not specified
+if not course and os.path.isfile(exec_list):
+    with open(exec_list, "r") as f:
+        try:
+            course = [c["id"] for c in json.load(f)]
+        except Exception as e:
+            print(f"*Failed to load course list from file: {e}")
+            exit(1)
+
+# still not found?
+if not course:
+    fucker.fuckWhatever()
+    exit(0)
+
+### auto detect mode
 for c in course:
     if args.videos:
         for v in args.videos:

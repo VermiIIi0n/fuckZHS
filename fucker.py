@@ -1,8 +1,9 @@
+from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
-from zd_utils import Cipher, getEv, WatchPoint
 from utils import progressBar, HMS
 from random import randint, random
+from datetime import datetime
 from threading import Thread
 from base64 import b64encode
 from getpass import getpass
@@ -11,6 +12,7 @@ from logger import logger
 from sign import sign
 import requests
 import urllib
+import math
 import time
 import json
 import re
@@ -82,7 +84,8 @@ class Fucker:
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
         self.end_thre = min(end_thre or 0.91, 1.0) # video play end threshold, above this will be considered as finished
         self.prefix = "  |"                        # prefix for tree view
-        self.context = ObjDict(default={})         # context for methods
+        self.context = ObjDict(default=None)       # context for methods
+        self.courses = ObjDict(default=None)       # store courses info
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self):
@@ -141,6 +144,23 @@ class Fucker:
             logger.exception(e)
             raise Exception(f"Login failed: {e}")
 
+    def fuckWhatever(self):
+        """Fuck whatever is found"""
+        zhidao_ids = [c.secret for c in self.getZhidaoList()]
+        for i in zhidao_ids:
+            try:
+                self.fuckZhidaoCourse(i)
+            except Exception as e:
+                logger.exception(e)
+                continue
+        hike_ids = [c.courseId for c in self.getHikeList()]
+        for i in hike_ids:
+            try:
+                self.fuckHikeCourse(i)
+            except Exception as e:
+                logger.exception(e)
+                continue
+
     def fuckCourse(self, course_id:str, tree_view:bool=True):
         """
         ### Fuck the whole course
@@ -169,6 +189,27 @@ class Fucker:
 # so we need to use different methods for different API
 #############################################
 # following are methods for studyservice-api.zhihuishu.com API
+    def getZhidaoList(self):
+        """
+        ### Get all courses of zhidao from server
+        """
+        if self.courses.zhidao:
+            return self.courses.zhidao
+        url = "https://onlineservice-api.zhihuishu.com/gateway/t/v1/student/course/share/queryShareCourseInfo"
+        self._checkCookies()
+        self._sessionReady()
+        page = 1 # initial page number
+        data = {"status": 0, "pageNo": page, "pageSize": 5}
+        r = self._zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
+        r.default = []
+        total = r.totalCount or 0
+        self.courses.zhidao = r.courseOpenDtos
+        for i in range(2, int(math.ceil(total/5))+1):
+            data["pageNo"] = i
+            r = self._zhidaoQuery(url, data, key=HOME_KEY).result
+            self.courses.zhidao += r.courseOpenDtos
+        return self.courses.zhidao
+
     def getZhidaoContext(self, RAC_id:str, force:bool=False):
         """
         ### fetch context for zhidao course
@@ -473,9 +514,9 @@ class Fucker:
         return ','.join(a)
 
     def _zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
-               setTimeStamp:bool=True, method:str="POST"):
+               setTimeStamp:bool=True, method:str="POST", key=VIDEO_KEY):
         """set ok_code to None for no check"""
-        cipher = Cipher()
+        cipher = Cipher(key)
         if setTimeStamp:
             data["dateFormate"] = int(time.time())*1000 # somehow their timestamps are ending with 000
         logger.debug(f"{method} url: {url}\nraw_data: {json.dumps(data,indent=4,ensure_ascii=False)}")
@@ -492,6 +533,24 @@ class Fucker:
 # end of zhidao methods
 #############################################
 # following are methods for hike API
+    def getHikeList(self):
+        """
+        ### Get all courses of zhidao from server
+        """
+        if self.courses.hike:
+            return self.courses.hike
+        url = "https://hikeservice.zhihuishu.com/student/course/aided/getMyCourseList"
+        self._checkCookies()
+        self._sessionReady()
+        params = {
+            "uuid": self.uuid,
+            "data": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        }
+        r = self._apiQuery(url, params, "GET").result
+        r.default = []
+        self.courses.hike = r.startInngcourseList # I've given up on their eNgLIsH
+        return self.courses.hike
+
     def getHikeContext(self, course_id:str, force:bool=False):
         if course_id in self.context and not force:
             return self.context[course_id]
@@ -660,13 +719,12 @@ class Fucker:
         cookies = self.session.cookies.copy()
         # get video link
         parse_url = "https://newbase.zhihuishu.com/video/initVideo"
-        r = self.session.get(parse_url, 
-                            params={
-                                "jsonpCallBack": "result",
-                                "videoID": str(video_id),
-                                "_": int(time.time()*1000)
-                            },
-                            cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
+        r = requests.get(parse_url, params={
+                                    "jsonpCallBack": "result",
+                                    "videoID": str(video_id),
+                                    "_": int(time.time()*1000)
+                                },
+                        cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
         r = re.match(r"^result\((.*)\)$",r.text).group(1)
         url = ObjDict(json.loads(r)).result.lines[0].lineUrl
         requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)

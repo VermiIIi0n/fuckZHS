@@ -101,14 +101,8 @@ if __name__ == "__main__":
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
     #print(getEv([1,2,3,4,'你']))
-    d = "F7QU+AhkFOtvTMIQjtnNpw=="
-    #r = ObjDict(json.loads(h.decrypt(d)))
-    #print(r)
+    d = "NEuH3llD9woD4DQgu0k6Uvp5yyo8WT84Dq5lU2iPwvgKNatePzJ+vu/4PRaNYy+K"
+    r = ObjDict(json.loads(h.decrypt(d)))
+    print(r)
     #print(r.watchPoint)
     #print(revEv(r.ev))
-    wp = WatchPoint(61)
-    wp.add(321)
-    print(wp.get())
-    for i in range(30):
-        wp.add(321)
-    print(wp.get())

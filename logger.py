@@ -3,7 +3,6 @@
 import logging
 import os
 from utils import getRealPath
-from multiprocessing import Lock
 
 class MonoLogger:
     _logger_map = {}

@@ -15,6 +15,10 @@
 于是我打算直接抄家, 入它后端(*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
 ***
 ### 重要更新
+-> v2.2.0:
+1. 课程 ID 不再为必须参数
+2. 支持从文件读取课程枪毙清单, 详见 [_拉清单_](#拉清单)  
+
 -> v2.0.0:
 1. 新增 知到共享学分课 API(studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
 2. 移除依赖 _selenium_
@@ -41,6 +45,7 @@
 
 2. `Fxxking`: 开干
    * 使用命令行参数
+   * 拉清单
    * 参数列表
 
 3. `API` 简易文档: _用于单独使用模块_
@@ -81,7 +86,11 @@ _*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗�
   _*信息优先级: 命令行 > 配置文件 > 交互输入_  
 ```bash
 cd fuckZHS
-python main.py -c 114514 # -c 缺省将需要交互输入课程 ID
+python main.py # 刷所有课
+#只刷课程 ID 为 114514 的课
+python main.py -c 114514
+# 想秒过可以设个很高的 SPEEEED
+python main.py -s 444 # 我就感觉到快, 有种催人ban的感觉
 # 又或者可以限制学习25分钟
 python main.py -c 114514 -l 25
 # 遇到问题想开 debug 模式, 顺带加个代理?
@@ -93,15 +102,37 @@ python main.py -c 114514 -v 4060 9891
   _*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数_  
   _**更多选项请使用 `-h` 查看._  
 
+##### 拉清单:
+使用 `--fetch` 参数可从服务器获得所有课程清单, 存储到 _execution.json_ 这个小本本里, 您可以删去不想干的课程  
+当该文件存在且没有指定课程 ID 时, 会先看看这个小本本上有没有写着课程 ID  
+_*清单中 `id` 参数是必须的, 想额外拉清单时请注意_  
+_**修改时请注意 JSON 语法, 不然 Exceptions 会一下突开到脸上_
+```bash
+python main.py --fetch
+```
+清单示例:
+```JSON
+[
+    {
+        "name": "中国近现代史",
+        "id": "42"
+    },
+    {
+        "name": "思想道德与法治",
+        "id": "1919"
+    }
+]
+```
 ##### 命令行参数列表
 * `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
 * `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
 * `-u`, `--username`: 账号
 * `-p`, `--password`: 密码
-* `-s`, `--speed`: ~~**SPEEEEED AND POWERRRR!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
+* `-s`, `--speed`: ~~**POWERR AND SPEEEEED!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
 * `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成
 * `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
 * `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 ***(可能包含账号密码, 别乱分享, 当心被盒武)***
+* `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
 * `--proxy`: 代理设置, 本来用来调试的(e.g. http://127.0.0.1:8080)
 * `-h` `--help`: 显示帮助
 
