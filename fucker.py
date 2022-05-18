@@ -1,7 +1,7 @@
 from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
-from utils import progressBar, HMS
+from utils import progressBar, HMS, wipeLine
 from random import randint, random
 from datetime import datetime
 from threading import Thread
@@ -200,13 +200,13 @@ class Fucker:
         self._sessionReady()
         page = 1 # initial page number
         data = {"status": 0, "pageNo": page, "pageSize": 5}
-        r = self._zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
+        r = self.zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
         r.default = []
         total = r.totalCount or 0
         self.courses.zhidao = r.courseOpenDtos
         for i in range(2, int(math.ceil(total/5))+1):
             data["pageNo"] = i
-            r = self._zhidaoQuery(url, data, key=HOME_KEY).result
+            r = self.zhidaoQuery(url, data, key=HOME_KEY).result
             self.courses.zhidao += r.courseOpenDtos
         return self.courses.zhidao
 
@@ -226,26 +226,15 @@ class Fucker:
             "Origin": "https://studyh5.zhihuishu.com",
             "Referer": "https://studyh5.zhihuishu.com/"
         })
-        # urls
-        login_url  = "https://studyservice-api.zhihuishu.com/login/gologin"
-        videos_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/videolist"
-        course_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryCourse"
-        state_url  = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStuyInfo" # NOT MY TYPO
-        read_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStudyReadBefore"
-        last_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryUserRecruitIdLastVideoId"
-
         # cross sites login
-        params = {"fromurl": f"https://studyh5.zhihuishu.com/videoStudy.html#/studyVideo?recruitAndCourseId={RAC_id}"}
-        self.session.get(login_url, params=params, proxies=self.proxies)
+        self.gologin(RAC_id)
 
-        data = {"recruitAndCourseId": RAC_id}
         # get course info, including recruitId, course name, etc
-        course = self._zhidaoQuery(course_url, data).data
+        course = self.queryCourse(RAC_id)
         recruit_id = course.recruitId
 
         # get chapters
-        chapters = self._zhidaoQuery(videos_url, data).data
-        chapters.default = [] # set default value for non exist attribute
+        chapters = self.videoList(RAC_id)
         course_id = chapters.courseId
         lesson_ids = []
         videos = ObjDict()
@@ -263,23 +252,20 @@ class Fucker:
         logger.info(f"{len(lesson_ids)} lessons, {len(videos)} videos")
 
         # get read-before, maybe unneccessary. BUTT hey, it's a POST request
-        self._zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id})
+        self.queryStudyReadBefore(course_id, recruit_id)
 
         # get study info, including watchState, studyTotalTime
-        data = {
-            "lessonIds": lesson_ids,
-            "lessonVideoIds": [video.id for video in videos.values() if video.id],
-            "recruitId": recruit_id
-        }
-        states = self._zhidaoQuery(state_url, data=data).data
+        video_ids = [video.id for video in videos.values() if video.id]
+        states = self.queryStudyInfo(lesson_ids, video_ids, recruit_id)
         states.default = ObjDict(default=False)   # set default value for non exist attribute
         for v in videos.values():
             state = states.lv[str(v.id)] or states.lesson[str(v.lessonId)]
             v.watchState, v.studyTotalTime = state.watchState, state.studyTotalTime
 
         # get most recently viewed video id, probably unneccessary, again, it's a POST request
-        last_video = self._zhidaoQuery(last_url, data={"recruitId": recruit_id}).data.lastViewVideoId
+        self.queryUserRecruitIdLastVideoId(recruit_id)
 
+        # update context
         ctx = ObjDict({
             "course": course,
             "chapters": chapters,
@@ -287,7 +273,7 @@ class Fucker:
             "cookies": self.session.cookies.copy(),
             "headers": self.session.headers.copy(),
             "fucked_time": 0
-        }, default={}) # store context for this course
+        }, default={})
         self.context[RAC_id] = ctx
         return ctx
         
@@ -308,26 +294,30 @@ class Fucker:
         begin_time = time.time() # real world time
         prefix = self.prefix # prefix for tree-like print
         w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
-        for chapter in chapters.videoChapterDtos:
-            tprint(prefix) # extra line as separator
-            tprint(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
-            for lesson in chapter.videoLessons:
-                tprint(prefix*2)
-                tprint(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
-                for video in lesson.videoSmallLessons:
-                    tprint(f"{prefix*3}__Fucking video {video.name}"[:w_lim])
-                    try:
-                        self.fuckZhidaoVideo(RAC_id, video.videoId)
-                    except TimeLimitExceeded as e:
-                        logger.info(f"Fucking time limit exceeded: {e}")
-                        tprint(prefix)
-                        tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
-                        return
-                    except Exception as e:
-                        logger.exception(e)
-                        tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
+        try:
+            for chapter in chapters.videoChapterDtos:
+                tprint(prefix) # extra line as separator
+                tprint(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
+                for lesson in chapter.videoLessons:
+                    tprint(prefix*2)
+                    tprint(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
+                    for video in lesson.videoSmallLessons:
+                        tprint(f"{prefix*3}__Fucking video {video.name}"[:w_lim])
+                        try:
+                            self.fuckZhidaoVideo(RAC_id, video.videoId)
+                        except TimeLimitExceeded as e:
+                            logger.info(f"Fucking time limit exceeded: {e}")
+                            tprint(prefix)
+                            tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
+                            return
+                        except Exception as e:
+                            logger.exception(e)
+                            tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
+        except KeyboardInterrupt:
+            logger.info("User interrupted")
+        wipeLine()
         tprint(prefix)
-        tprint(f"{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
+        tprint(f"\r{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
     
     def fuckZhidaoVideo(self, RAC_id, video_id):
         """
@@ -336,18 +326,7 @@ class Fucker:
         """
         self._checkCookies()
         self._checkTimeLimit(RAC_id)
-
-        # urls 
-        note_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/prelearningNote"
-        event_url  = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/loadVideoPointerInfo"
-        cache_url  = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveCacheIntervalTime"
-        record_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveDatabaseIntervalTime"
-        getQ_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/lessonPopupExam"
-        subQ_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/saveLessonPopupExamSaveAnswer"
-
         ctx = self.getZhidaoContext(RAC_id)
-        course_id = ctx.chapters.courseId
-        recruit_id = ctx.course.recruitId
         video = ctx.videos[video_id]
         played_time = video.studyTotalTime
         watch_state = video.watchState
@@ -356,27 +335,12 @@ class Fucker:
         if watch_state == 1:
             logger.info(f"Video {video.name} already watched")
             return
-        # get pre learning note
-        data = {
-            "ccCourseId": course_id,
-            "chapterId": video.chapterId,
-            "isApply": 1,
-            "lessonId": video.lessonId, # this.lessonId
-            "lessonVideoId": video.id, # this.smallLessonId
-            "recruitId": recruit_id,
-            "videoId": video.videoId 
-        }
-        token_id = self._zhidaoQuery(note_url, data=data).data.studiedLessonDto.id
+        # get token id from pre learning note
+        token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
         token_id = b64encode(str(token_id).encode()).decode()
 
         # get questions
-        data = {
-            "lessonId": video.lessonId,
-            "lessonVideoId": video.id, 
-            "recruitId": recruit_id, 
-            "courseId": course_id
-        }
-        questions = self._zhidaoQuery(event_url, data=data).data.questionPoint
+        questions = self.loadVideoPointerInfo(RAC_id, video_id).questionPoint
         questions = sorted(questions, key=lambda x: x.timeSec, reverse=True) if questions else None
         while questions and questions[-1].timeSec <= played_time:
             questions.pop() # remove questions that are already answered
@@ -387,8 +351,7 @@ class Fucker:
             end_time = max(questions[0].timeSec, end_time) # compare last question time with end_time
 
         # emulating video playing
-        watch_thread = Thread(target=self._watchVideo, args=(video.videoId,))
-        watch_thread.start()
+        self.watchVideo(video.videoId)
 
         # prepare vars
         speed = self.speed or 1.5  # default speed for Zhidao is 1.5
@@ -415,11 +378,10 @@ class Fucker:
             if questions and played_time >= questions[-1].timeSec:
                 question = questions.pop()
                 try:
-                    question = self._zhidaoQuery(getQ_url, data={
-                        "lessonId": video.lessonId, # this.lessonId
-                        "lessonVideoId": video.id, # this.smallLessonId
-                        "questionIds" : question.questionIds
-                    }).data.lessonTestQuestionUseInterfaceDtos[0].testQuestion
+                    question = self.lessonPopoupExam(RAC_id,
+                                                    video_id,
+                                                    question.questionIds
+                                ).lessonTestQuestionUseInterfaceDtos[0].testQuestion
                     answer = 2    # answer delay time
                     report = True # set report flag
                 except Exception as e:
@@ -428,16 +390,7 @@ class Fucker:
             if answer is not None:
                 if answer == 0:
                     answer = None # unset answer flag
-                    self._zhidaoQuery(subQ_url, data={
-                        "courseId": course_id, # this.courseId,
-                        "recruitId": recruit_id, # this.recruitId
-                        "testQuestionId": question.questionId, # this.pageList.testQuestion.questionId
-                        "isCurrent": '1', # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
-                        "lessonId": video.lessonId, # this.lessonId
-                        "lessonVideoId": video.id, # this.smallLessonId
-                        "answer": self.answerZhidao(question), # this.answerStu.join(",")
-                        "testType": 0 # always 0
-                    })
+                    self.saveLessonPopupExamSaveAnswer(RAC_id, video_id, question.questionId, self.answerZhidao(question))
                 else:
                     pause = pause or 1 # emulate pause on pop quiz
                     answer -= 1
@@ -445,51 +398,14 @@ class Fucker:
             if elapsed_time % db_interval == 0 or played_time >= end_time or report:
                 report = False # unset report flag
                 wp.add(played_time)
-                # prepare for ev
-                raw_ev = [
-                    recruit_id,
-                    video.lessonId, # this.lessonId
-                    video.id, # this.smallLessonId
-                    video.videoId, # this.videoId
-                    video.chapterId, # this.chapterId
-                    '0', # this.data.studyStatus, always 0
-                    int(played_time-last_submit), # this.playTimes
-                    int(played_time), # this.totalStudyTime
-                    HMS(seconds=min(video.videoSec, # more realistic
-                                    int(played_time+randint(29,31)))) 
-                ]
-                # prepare payload
-                data = {
-                    "watchPoint": wp.get(),
-                    "ev": getEv(raw_ev),
-                    "learningTokenId": token_id
-                }
-                self._zhidaoQuery(record_url, data=data) # now submit to database
+                # now submit to database
+                self.saveDatabaseIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
                 wp.reset(played_time)     # reset watch point
             ## report to cache
             if elapsed_time % cache_interval == 0:
                 wp.add(played_time)
-                # prepare ev
-                #!! NOTICE: content is different from database
-                raw_ev = [
-                    recruit_id,
-                    video.chapterId,
-                    course_id,
-                    video.lessonId,
-                    HMS(seconds=min(video.videoSec, # more realistic
-                                    int(played_time+randint(10,20)))),
-                    int(played_time),
-                    video.videoId,
-                    video.id,
-                    int(played_time-last_submit),
-                ]
-                data = {
-                    "watchPoint": wp.get(),
-                    "ev": getEv(raw_ev),
-                    "learningTokenId": token_id
-                }
-                self._zhidaoQuery(cache_url, data=data) # now submit to cache
+                self.saveCacheIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
                 wp.reset(played_time)     # reset watch point
             ## on pause
@@ -513,7 +429,7 @@ class Fucker:
         a = [str(opt.id) for opt in q.questionOptions if opt.result=='1'] # choose correct answers
         return ','.join(a)
 
-    def _zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
+    def zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0,
                setTimeStamp:bool=True, method:str="POST", key=VIDEO_KEY):
         """set ok_code to None for no check"""
         cipher = Cipher(key)
@@ -529,6 +445,167 @@ class Fucker:
             logger.error(e)
             raise e
         return ret
+
+    def gologin(self, RAC_id):
+        '''### cross sites login for zhidao course'''
+        login_url = "https://studyservice-api.zhihuishu.com/login/gologin"
+        params = {"fromurl": f"https://studyh5.zhihuishu.com/videoStudy.html#/studyVideo?recruitAndCourseId={RAC_id}"}
+        return self.session.get(login_url, params=params, proxies=self.proxies)
+
+    def queryCourse(self, RAC_id):
+        '''### query course info for zhidao share course'''
+        course_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryCourse"
+        return self.zhidaoQuery(course_url, {"recruitAndCourseId": RAC_id}).data
+
+    def videoList(self, RAC_id):
+        '''### query video/chapter list for zhidao share course'''
+        videos_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/videolist"
+        chapters = self.zhidaoQuery(videos_url, {"recruitAndCourseId": RAC_id}).data
+        chapters.default = [] # set default value for non exist attribute
+        return chapters
+
+    def queryStudyReadBefore(self, course_id, recruit_id):
+        '''### query study read before for zhidao share course'''
+        read_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStudyReadBefore"
+        return self.zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id}).data
+
+    def queryStudyInfo(self, lesson_ids:list, video_ids:list, recruit_id):
+        '''### query study info for zhidao'''
+        state_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStuyInfo" # NOT MY TYPO
+        data = {
+            "lessonIds": lesson_ids,
+            "lessonVideoIds": video_ids,
+            "recruitId": recruit_id
+        }
+        return self.zhidaoQuery(state_url, data=data).data
+
+    def queryUserRecruitIdLastVideoId(self, recruit_id):
+        '''### query user recruit id last video id for zhidao'''
+        last_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryUserRecruitIdLastVideoId"
+        return self.zhidaoQuery(last_url, data={"recruitId": recruit_id}).data
+
+    def prelearningNote(self, RAC_id, video_id):
+        '''### query prelearning note for zhidao'''
+        note_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/prelearningNote"
+
+        ctx = self.getZhidaoContext(RAC_id)
+        course_id = ctx.chapters.courseId
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        data = {
+            "ccCourseId": course_id,
+            "chapterId": video.chapterId,
+            "isApply": 1,
+            "lessonId": video.lessonId, # this.lessonId
+            "lessonVideoId": video.id, # this.smallLessonId
+            "recruitId": recruit_id,
+            "videoId": video.videoId 
+        }
+        return self.zhidaoQuery(note_url, data=data).data
+
+    def loadVideoPointerInfo(self, RAC_id, video_id):
+        '''### query video pointer info for zhidao'''
+        event_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/loadVideoPointerInfo"
+        ctx = self.getZhidaoContext(RAC_id)
+        course_id = ctx.chapters.courseId
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        data = {
+            "lessonId": video.lessonId,
+            "lessonVideoId": video.id, 
+            "recruitId": recruit_id, 
+            "courseId": course_id
+        }
+        return self.zhidaoQuery(event_url, data=data).data
+
+    def lessonPopoupExam(self, RAC_id, video_id, question_ids:list):
+        '''### query lesson popoup exam for zhidao'''
+        getQ_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/lessonPopupExam"
+        ctx = self.getZhidaoContext(RAC_id)
+        video = ctx.videos[video_id]
+        data={
+            "lessonId": video.lessonId, # this.lessonId
+            "lessonVideoId": video.id, # this.smallLessonId
+            "questionIds" : question_ids
+        }
+        return self.zhidaoQuery(getQ_url, data).data
+
+    def saveLessonPopupExamSaveAnswer(self, RAC_id, video_id, question_id, answer_ids:str):
+        '''### save lesson popup exam save answer for zhidao'''
+        subQ_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/saveLessonPopupExamSaveAnswer"
+        ctx = self.getZhidaoContext(RAC_id)
+        course_id = ctx.chapters.courseId
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        data={
+            "courseId": course_id, # this.courseId,
+            "recruitId": recruit_id, # this.recruitId
+            "testQuestionId": question_id, # this.pageList.testQuestion.questionId
+            "isCurrent": '1', # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
+            "lessonId": video.lessonId, # this.lessonId
+            "lessonVideoId": video.id, # this.smallLessonId
+            "answer": answer_ids, # this.answerStu.join(",")
+            "testType": 0 # always 0
+        }
+        return self.zhidaoQuery(subQ_url, data).data
+
+    def saveDatabaseIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None):
+        '''### save database interval time for zhidao'''
+        record_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveDatabaseIntervalTime"
+        ctx = self.getZhidaoContext(RAC_id)
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        raw_ev = [
+            recruit_id,
+            video.lessonId, # this.lessonId
+            video.id, # this.smallLessonId
+            video.videoId, # this.videoId
+            video.chapterId, # this.chapterId
+            '0', # this.data.studyStatus, always 0
+            int(played_time-last_submit), # this.playTimes
+            int(played_time), # this.totalStudyTime
+            HMS(seconds=min(video.videoSec, # more realistic
+                            int(played_time+randint(29,31)))) 
+        ]
+        if not token_id:
+            token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
+            token_id = b64encode(str(token_id).encode()).decode()
+        data = {
+            "watchPoint": watch_point,
+            "ev": getEv(raw_ev),
+            "learningTokenId": token_id
+        }
+        return self.zhidaoQuery(record_url, data=data).data
+
+    def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None):
+        '''### save cache interval time for zhidao'''
+        cache_url  = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveCacheIntervalTime"
+        ctx = self.getZhidaoContext(RAC_id)
+        recruit_id = ctx.course.recruitId
+        course_id = ctx.chapters.courseId
+        video = ctx.videos[video_id]
+        #!! NOTICE: content is different from database
+        raw_ev = [
+            recruit_id,
+            video.chapterId,
+            course_id,
+            video.lessonId,
+            HMS(seconds=min(video.videoSec, # more realistic
+                            int(played_time+randint(10,20)))),
+            int(played_time),
+            video.videoId,
+            video.id,
+            int(played_time-last_submit),
+        ]
+        if not token_id:
+            token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
+            token_id = b64encode(str(token_id).encode()).decode()
+        data = {
+            "watchPoint": watch_point,
+            "ev": getEv(raw_ev),
+            "learningTokenId": token_id
+        }
+        return self.zhidaoQuery(cache_url, data=data).data
 
 # end of zhidao methods
 #############################################
@@ -560,10 +637,7 @@ class Fucker:
             "Origin": "https://hike.zhihuishu.com",
             "Referer": "https://hike.zhihuishu.com/"
         })
-        url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree"
-        params = {"courseId": course_id}
-        self._hikeQuery(url, params)
-        root = self._hikeQuery(url, params).rt
+        root = self.queryResourceMenuTree(course_id)
         ctx = ObjDict({
             "root": root,
             "cookies": self.session.cookies.copy(),
@@ -581,9 +655,13 @@ class Fucker:
         prefix = self.prefix
         logger.info(f"Fucking Hike course {course_id} (total root chapters: {len(root)})")
         tprint(f"Fucking course {course_id} (total root chapters: {len(root)})")
-        for chapter in root:
-            self._traverse(course_id, chapter, tree_view=tree_view)
+        try:
+            for chapter in root:
+                self._traverse(course_id, chapter, tree_view=tree_view)
+        except KeyboardInterrupt:
+            logger.info("user interrupted")
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
+        wipeLine()
         tprint(prefix)
         tprint(f"{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
 
@@ -594,67 +672,36 @@ class Fucker:
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
         ctx = self.getHikeContext(course_id)
-
-        #urls
-        url       = "https://hike-teaching.zhihuishu.com/stuStudy/saveStuStudyRecord"
-        parse_url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/stuViewFile"
-
-        params = {
-            "courseId": course_id,
-            "fileId": file_id,
-        }
         # get video info
-        file_info = self._hikeQuery(parse_url, params)
+        file_info = self.stuViewFile(course_id, file_id)
 
         # emulating video playing
-        watch_thread = Thread(target=self._watchVideo, args=(file_info.rt.dataId,))
-        watch_thread.start()
+        self.watchVideo(file_info.dataId)
 
         # getting ready to fuck
-        params["uuid"] = self.uuid # add it now 'cause it shoudln't be in the params of parsing url
-        total_time = int(file_info.rt.totalTime)
+        total_time = int(file_info.totalTime)
         start_date = int(time.time()*1000)
-        watched_time = 0.0
         speed = self.speed or 1.25 # default speed for Hike is 1.25
         interval = 30              # interval between 2 progess reports
         end_time = total_time*self.end_thre
+        played_time = prev_time    # total video played time
         # start main loop
-        while (prev_time+watched_time) <= end_time:
+        while played_time <= end_time:
             time.sleep(1)
             ctx.fucked_time += 1
-            watched_time += speed
-            watched_time = min(prev_time+watched_time, total_time) - prev_time
+            played_time = min(played_time+speed, total_time)
             # enter branch when video is finished or interval is reached
-            if (prev_time+watched_time) >= end_time or \
-                not (int(watched_time) % interval):
-                params.update({
-                    "studyTotalTime": int(watched_time),
-                    "startWatchTime": int(prev_time),
-                    "endWatchTime": int(prev_time+watched_time),
-                    "startDate": start_date,
-                    "endDate": int(time.time()*1000),
-                })
-                info = self._hikeQuery(url, params, sig=True, ok_code=200) # report progress
-                logger.debug(f"json: status: {info.status}, msg: {info.message}, rt: {info.rt}")
-                if info.rt is None:
-                    raise Exception(
-                        f"Failed to fuck video {file_id} of course {course_id}, \n"+
-                        f"error: {info.status}, message: {info.message}, rt: {info.rt}")
-                prev_time = info.rt
-                watched_time = 0
-            progressBar(watched_time+prev_time, end_time,
+            if played_time >= end_time or \
+                not (int(played_time-prev_time) % interval):
+                ret_time = self.saveStuStudyRecord(course_id,file_id,played_time,prev_time,start_date) # report progress
+                prev_time, played_time = ret_time, ret_time
+            progressBar(played_time, end_time,
                         prefix=f"fucking {file_id}", suffix="of threshold")
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
         time.sleep(random()+1) # more human-like
 
     def fuckFile(self, course_id, file_id):
-        params = {
-            "courseId": course_id,
-            "fileId": file_id,
-            "_": int(time.time()*1000)
-        }
-        parse_url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/stuViewFile"
-        self.session.get(parse_url, params=params, proxies=self.proxies, timeout=10)
+        self.stuViewFile(course_id, file_id)
         time.sleep(random()*2+1) # more human-like
 
     def _traverse(self,course_id, node: ObjDict, depth=0, tree_view=True):
@@ -695,7 +742,7 @@ class Fucker:
                 logger.exception(e)
                 tprint(f"{prefix}##Failed: {e}"[:w_lim])
 
-    def _hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
+    def hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
                    setTimeStamp:bool=True, method:str="GET"):
         """set ok_code to None for no check"""
         if setTimeStamp:
@@ -711,23 +758,61 @@ class Fucker:
             logger.error(e)
             raise e
         return ret
+
+    def queryResourceMenuTree(self, course_id):
+        '''### get resource menu tree for hike'''
+        url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree"
+        params = {"courseId": course_id}
+        return self.hikeQuery(url, params).rt
+
+    def stuViewFile(self, course_id, file_id):
+        '''### get resource menu tree for hike'''
+        parse_url = "https://studyresources.zhihuishu.com/studyResources/stuResouce/stuViewFile"
+        params = {
+            "courseId": course_id,
+            "fileId": file_id
+        }
+        # get video info
+        return self.hikeQuery(parse_url, params).rt
+
+    def saveStuStudyRecord(self, course_id, file_id, played_time, prev_time, start_date):
+        '''### save study record for hike'''
+        url = "https://hike-teaching.zhihuishu.com/stuStudy/saveStuStudyRecord"
+        params = {
+            "uuid": self.uuid,
+            "courseId": course_id,
+            "fileId": file_id,
+            "studyTotalTime": int(played_time-prev_time),
+            "startWatchTime": int(prev_time),
+            "endWatchTime": int(played_time),
+            "startDate": start_date,
+            "endDate": int(time.time()*1000),
+        }
+        rt = self.hikeQuery(url, params, sig=True, ok_code=200).rt
+        if rt is None:
+            raise Exception("Failed to save study record")
+        return rt
+
 # end of hike methods
 #######################################
-# shared private methods
-    def _watchVideo(self, video_id): # it's probably unnecessary but let's keep it to fool those idiots
+# shared methods
+    def watchVideo(self, video_id): # it's probably unnecessary but let's keep it to fool those idiots
         headers = self.session.headers.copy()
         cookies = self.session.cookies.copy()
-        # get video link
         parse_url = "https://newbase.zhihuishu.com/video/initVideo"
-        r = requests.get(parse_url, params={
-                                    "jsonpCallBack": "result",
-                                    "videoID": str(video_id),
-                                    "_": int(time.time()*1000)
-                                },
-                        cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
-        r = re.match(r"^result\((.*)\)$",r.text).group(1)
-        url = ObjDict(json.loads(r)).result.lines[0].lineUrl
-        requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
+        def watch():
+            # get video link
+            r = requests.get(parse_url, params={
+                                        "jsonpCallBack": "result",
+                                        "videoID": str(video_id),
+                                        "_": int(time.time()*1000)
+                                    },
+                            cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
+            r = re.match(r"^result\((.*)\)$",r.text).group(1)
+            url = ObjDict(json.loads(r)).result.lines[0].lineUrl
+            requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
+        watch_thread = Thread(target=watch)
+        watch_thread.start()
 
     def _apiQuery(self, url:str, data:dict, method:str="POST"):
         method = method.upper()

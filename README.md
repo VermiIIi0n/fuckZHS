@@ -48,7 +48,7 @@
    * 拉清单
    * 参数列表
 
-3. `API` 简易文档: _用于单独使用模块_
+3. `API` 简易文档: 用于单独使用模块
 
 #### Login
   _*如果非常用地登入会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单._  
@@ -71,7 +71,7 @@
 填入账号密码即可无干预自动登入  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
-##### 使用命令行参数登入
+##### 使用命令行参数登入:
 ```bash
 python main.py -u <username> -p <password>
 ```
@@ -87,11 +87,11 @@ _*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗�
 ```bash
 cd fuckZHS
 python main.py # 刷所有课
-#只刷课程 ID 为 114514 的课
+# 只刷课程 ID 为 114514 的课
 python main.py -c 114514
 # 想秒过可以设个很高的 SPEEEED
 python main.py -s 444 # 我就感觉到快, 有种催人ban的感觉
-# 又或者可以限制学习25分钟
+# 又或者可以限制每节课学习25分钟
 python main.py -c 114514 -l 25
 # 遇到问题想开 debug 模式, 顺带加个代理?
 python main.py -c 114514 -d --proxy http://127.0.0.1:2333
@@ -208,10 +208,41 @@ fucker.fuckHikeVideo(courseId, fileId) # 这俩就在 校内学分课(hike) 网�
 fucker.getZhidaoContext(recruitAndCourseId)
 fucker.getHikeContext(courseId)
 fucker.getHikeContext(courseId, force=True) # 强制更新context并重置课程学习时间(本地记录)
-```
+'''
 自动在 `fuck*Course` `fuck*Video` 中被调用  
-返回一个 `dict`, 内含该 ID 对应课程的必要信息以及实例运行后学习该课的总时间, 必要信息没有的话会向服务器请求并重置学习时间    
+返回一个 `dict`, 内含该 ID 对应课程的必要信息以及实例运行后学习该课的总时间, 必要信息没有的话会向服务器请求 
 该 `dict` 结构请见源码
+'''
+```
+
+##### `hike` API:
+```Python
+# 自动添加时间戳和签名, 并检查返回代码
+def hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200, setTimeStamp:bool=True, method:str="GET")...
+# 以下为与网页接口同名的 API, 只返回响应中的 "rt" 部分
+def queryResourceMenuTree(self, course_id)...
+def stuViewFile(self, course_id, file_id)...
+def saveStuStudyRecord(self, course_id, file_id, played_time, prev_time, start_date)...
+```
+##### `zhidao` API:
+```Python
+# 自动添加时间戳和加密, 并检查返回代码
+def zhidaoQuery(self, url:str, data:dict, encrypt:bool=True, ok_code:int=0, setTimeStamp:bool=True, method:str="POST", key=VIDEO_KEY)...
+# 以下为与网页接口同名的 API, 只返回响应中的 "data" 部分
+def gologin(self, RAC_id)...
+def queryCourse(self, RAC_id)...
+def videoList(self, RAC_id)...
+def queryStudyReadBefore(self, course_id, recruit_id)...
+def queryStudyInfo(self, lesson_ids:list, video_ids:list, recruit_id)...
+def queryUserRecruitIdLastVideoId(self, recruit_id)...
+def prelearningNote(self, RAC_id, video_id)...
+def loadVideoPointerInfo(self, RAC_id, video_id)...
+def lessonPopoupExam(self, RAC_id, video_id, question_ids:list)...
+def saveLessonPopupExamSaveAnswer(self, RAC_id, video_id, question_id, answer_ids:str)...
+def saveDatabaseIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None)...
+def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None)
+```
+
 ***
 ### 结构介绍
 #### 文件结构:

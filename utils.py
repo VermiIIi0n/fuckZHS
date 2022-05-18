@@ -33,6 +33,8 @@ def versionCmp(v1:str, v2:str):
             return dt
     return 0 if len(v1) == len(v2) else (v1[-1] if len(v1) > len(v2) else -v2[-1])
 
+def wipeLine():
+    print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
 
 def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
                       length = (os.get_terminal_size().columns-4), fill = '#'):
@@ -54,4 +56,4 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     bar = fill * filled_len + ' ' * (bar_len - filled_len)
     print(f"\r{prefix}{bar}{suffix}", end = '\r')
     if iteration >= total:
-        print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
+        wipeLine()
