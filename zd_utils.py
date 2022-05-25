@@ -10,9 +10,9 @@ VIDEO_KEY = b"qz632524n86i7fk9"
 QA_KEY    = b"w1k5ntxecb8wmbc2"
 
 class Cipher:
-    def __init__(self, key:bytes=None, iv:bytes=None):
-        self.key = key or VIDEO_KEY
-        self.iv = iv or IV
+    def __init__(self, key:bytes=VIDEO_KEY, iv:bytes=IV):
+        self.key = key
+        self.iv = iv
 
     @staticmethod
     def pad(data):
@@ -72,7 +72,7 @@ def getEv(data:list, key:str="zzpttjd"):
         tmp = hex(ord(c)^next(gen)).replace("0x", "")
         if len(tmp)<2:
             tmp = '0' + tmp
-        ev += tmp[-4:] # actually -2 is fine, but their souce code said -4
+        ev += tmp[-4:] # actually -2 is fine, but their sauce code said -4
     return ev
 
 def revEv(ev:str, key:str="zzpttjd"):

@@ -72,7 +72,7 @@ class Fucker:
         retry = Retry(total=5,
                       backoff_factor=0.1, 
                       raise_on_status=True,
-                      status_forcelist=[ 500, 502, 503, 504])
+                      status_forcelist=[500, 502, 503, 504])
         self.session = requests.Session()
         self.session.mount('http://', HTTPAdapter(max_retries=retry))
         self.session.mount('https://', HTTPAdapter(max_retries=retry))
@@ -100,7 +100,7 @@ class Fucker:
             try:
                 self.uuid = json.loads(unquote(cookies["CASLOGC"]))["uuid"]
                 self._cookies[f"exitRecod_{self.uuid}"] = "2"
-            except Exception:
+            except KeyError:
                 raise ValueError("Cookies invalid")
         logger.debug(f"set cookies: {self._cookies}")
 
@@ -131,9 +131,20 @@ class Fucker:
                 "password": password
             }
             user_info = self._apiQuery(valid_url, form) # get uuid and pwd
+            match user_info.status:
+                case 1:
+                    pass # success
+                case -2:
+                    raise ValueError("Username or password invalid")
+                case -4:
+                    raise Exception("Multiple invalid attempts, requires captcha")
+                case -9:
+                    raise Exception("Account requires SMS verification")
+                case _:
+                    pass # unknown error, just try to ignore
             need_auth = self._apiQuery(check_url, {"uuid": user_info.uuid}).rt.needAuth
             if need_auth:
-                raise Exception("account need auth, please login using browser to pass auth")
+                raise Exception("Account need auth, please login using browser to pass auth")
             self.session.get(login_page, params={"pwd": user_info.pwd}, proxies=self.proxies, timeout=10)
             self.cookies = self.session.cookies.copy()
             if not self.cookies:
@@ -327,6 +338,7 @@ class Fucker:
         self._checkCookies()
         self._checkTimeLimit(RAC_id)
         ctx = self.getZhidaoContext(RAC_id)
+        self._sessionReady(ctx)
         video = ctx.videos[video_id]
         played_time = video.studyTotalTime
         watch_state = video.watchState
@@ -374,6 +386,13 @@ class Fucker:
             report = report or pause == 60  # report on pause
 
             ### events
+            ## on pause
+            if pause:
+                pause -= 1
+                played_time = last_submit
+            ## update watch point
+            if not elapsed_time % 2:
+                wp.add(played_time)
             ## get questions
             if questions and played_time >= questions[-1].timeSec:
                 question = questions.pop()
@@ -408,11 +427,6 @@ class Fucker:
                 self.saveCacheIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
                 wp.reset(played_time)     # reset watch point
-            ## on pause
-            if pause:
-                pause -= 1
-                played_time = last_submit
-                wp.add(played_time)
             ### end events
             # print progress bar
             s, e = [60-pause, 60] if pause else [played_time, end_time]
@@ -668,10 +682,10 @@ class Fucker:
     def fuckHikeVideo(self, course_id, file_id, prev_time=0):
         self._checkCookies()
         self._checkTimeLimit(course_id)
-        self._sessionReady() # set cookies, headers, proxies
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
         ctx = self.getHikeContext(course_id)
+        self._sessionReady(ctx) # set cookies, headers, proxies
         # get video info
         file_info = self.stuViewFile(course_id, file_id)
 
@@ -848,3 +862,8 @@ class Fucker:
         self.session.cookies = ctx.cookies or self.cookies.copy()
         self.session.headers = ctx.headers or self.headers.copy()
         self.session.proxies = self.proxies.copy()
+
+if __name__ == "__main__":
+    f = Fucker()
+    f.login()
+    f.fuckWhatever()

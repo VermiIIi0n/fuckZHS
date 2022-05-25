@@ -23,7 +23,7 @@ else:
     with open(getConfigPath(), 'w') as f:
         json.dump(config, f, indent=4)
 
-# parse auguments
+# parse arguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
 parser.add_argument("-c", "--course", type=str, nargs="+", help="CourseId or recruitAndCourseId, can be found in URL")
 parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId in URL, or, videoId found in API response")
@@ -133,7 +133,13 @@ for c in course:
             except Exception:
                 pass
     else:
-        fucker.fuckCourse(course_id=c)
+        try:
+            fucker.fuckCourse(course_id=c)
+            course.remove(c)
+        except Exception:
+            pass
+if course:
+    print(f"*the following courses are not fucked: {course}")
 if args.videos:
     print(f"*the following videos are not fucked: {args.videos}")
     

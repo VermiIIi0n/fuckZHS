@@ -123,7 +123,7 @@ python main.py --fetch
     }
 ]
 ```
-##### 命令行参数列表
+##### 命令行参数列表:
 * `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
 * `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
 * `-u`, `--username`: 账号
@@ -158,8 +158,8 @@ python main.py --fetch
   * 配置文件中编辑 `"proxies":{"https":""}`
 * 还是无法解决?
   * 建议先开启 DEBUG 模式, 自行查看报错信息, 如果确实是我的锅就劳烦开个 issue
-  * 解决提出问题的人 ***(推荐)***
-  * ***JUST DO IT!***  
+  * 解决提出问题的人 ***(推荐)***  
+  ***JUST DO IT!***  
     ![JUST_DO_IT](./images/just_do_it.jpg)
 
 指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().

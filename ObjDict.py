@@ -65,11 +65,6 @@ class ObjDict(dict):
         elif isinstance(v, set):
             return set(self._convert(i) for i in v)
         else:
-            try:
-                for k,v in v.__dict__.items():
-                    v.__dict__[k] = self._convert(v)
-            except Exception:
-                pass
             return v
 
     @property
@@ -94,10 +89,8 @@ class ObjDict(dict):
 
     def __getattr__(self, name, default=NotExist):
         try:
-            return self[name]
+            return self[name] if default is self.NotExist else self.get(name,default)
         except KeyError:
-            if default is not ObjDict.NotExist:
-                return default
             raise AttributeError(f"{name} not found in {self}")
 
     def __setattr__(self, name, value):
@@ -105,12 +98,8 @@ class ObjDict(dict):
             raise AttributeError(f"set '{name}' with dot access is not allowed, consider using ['{name}']")
         if name in self.__dict__: # cannot just call setattr(self, name, value), recursion error
             self.__dict__[name] = value
-        elif hasattr(type(self), name):
-            v = getattr(type(self), name)
-            if hasattr(v, "__set__"):
-                v.__set__(self, value)
-            else:
-                setattr(type(self), name, value)
+        elif hasattr(getattr(type(self), name, None), "__set__"):
+            getattr(type(self), name).__set__(self, value)
         else:
             self[name] = value
 
