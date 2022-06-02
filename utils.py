@@ -7,7 +7,7 @@ from datetime import timedelta
 def HMS(*args, **kw):
     return str(timedelta(*args, **kw))
 
-def strToClass(class_name: str, module: str):
+def strToClass(class_name: str, module: str="__main__"):
     return getattr(sys.modules[module], class_name)
 
 def getDir():

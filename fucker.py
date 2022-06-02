@@ -212,9 +212,9 @@ class Fucker:
         page = 1 # initial page number
         data = {"status": 0, "pageNo": page, "pageSize": 5}
         r = self.zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
-        r.default = []
+        r.default = None
         total = r.totalCount or 0
-        self.courses.zhidao = r.courseOpenDtos
+        self.courses.zhidao = r.courseOpenDtos or []
         for i in range(2, int(math.ceil(total/5))+1):
             data["pageNo"] = i
             r = self.zhidaoQuery(url, data, key=HOME_KEY).result
@@ -638,8 +638,8 @@ class Fucker:
             "data": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         }
         r = self._apiQuery(url, params, "GET").result
-        r.default = []
-        self.courses.hike = r.startInngcourseList # I've given up on their eNgLIsH
+        r.default = None
+        self.courses.hike = r.startInngcourseList or []# I've given up on their eNgLIsH
         return self.courses.hike
 
     def getHikeContext(self, course_id:str, force:bool=False):
@@ -677,7 +677,7 @@ class Fucker:
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
         wipeLine()
         tprint(prefix)
-        tprint(f"{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s")
+        tprint(f"{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s\n")
 
     def fuckHikeVideo(self, course_id, file_id, prev_time=0):
         self._checkCookies()
@@ -862,8 +862,3 @@ class Fucker:
         self.session.cookies = ctx.cookies or self.cookies.copy()
         self.session.headers = ctx.headers or self.headers.copy()
         self.session.proxies = self.proxies.copy()
-
-if __name__ == "__main__":
-    f = Fucker()
-    f.login()
-    f.fuckWhatever()

@@ -138,8 +138,6 @@ for c in course:
             course.remove(c)
         except Exception:
             pass
-if course:
-    print(f"*the following courses are not fucked: {course}")
 if args.videos:
     print(f"*the following videos are not fucked: {args.videos}")
     
