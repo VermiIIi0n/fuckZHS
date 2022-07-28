@@ -22,7 +22,7 @@ assignees: ''
 
 **您的操作系统和所使用的本代码版本**
  - OS: [e.g. stupid Windows]
- - Version [e.g. 2.0.2]
+ - Version: [e.g. 2.0.2]
 
 **错误日志**
 请附上您认为重要的日志，不能判断的话请附上完整日志.

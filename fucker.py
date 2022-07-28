@@ -2,21 +2,25 @@ from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
 from utils import progressBar, HMS, wipeLine
+from base64 import b64encode, b64decode
 from random import randint, random
 from datetime import datetime
 from threading import Thread
-from base64 import b64encode
 from getpass import getpass
 from ObjDict import ObjDict
 from logger import logger
 from sign import sign
+from PIL import Image
+import websockets
 import requests
+import asyncio
 import urllib
 import math
 import time
 import json
 import re
 import os
+import io
 
 """
 ⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
@@ -145,7 +149,11 @@ class Fucker:
             need_auth = self._apiQuery(check_url, {"uuid": user_info.uuid}).rt.needAuth
             if need_auth:
                 raise Exception("Account need auth, please login using browser to pass auth")
-            self.session.get(login_page, params={"pwd": user_info.pwd}, proxies=self.proxies, timeout=10)
+            params = {"account":username,
+                      "pwd": user_info.pwd,
+                      "validate": 0
+                    }
+            self.session.get(login_page, params=params, proxies=self.proxies, timeout=10)
             self.cookies = self.session.cookies.copy()
             if not self.cookies:
                 raise Exception("No cookies found")
@@ -154,6 +162,44 @@ class Fucker:
         except Exception as e:
             logger.exception(e)
             raise Exception(f"Login failed: {e}")
+
+    def qrlogin(self):
+        """Login using qr code"""
+        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
+        qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
+        self._sessionReady()
+        async def wait(url):
+            async with websockets.connect(url, extra_headers=self.headers) as websocket:
+                while True:
+                    msg = await websocket.recv()
+                    msg = ObjDict(json.loads(msg), default=None)
+                    logger.debug(f"QR login received {msg}")
+                    match msg.code:
+                        case 0:
+                            logger.info(f"QR Scanned: {msg.msg}")
+                            print("QR Scanned")
+                        case 1:
+                            logger.info(f"One-time code get: {msg.msg}")
+                            print("One-time code received")
+                            self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
+                            self.cookies = self.session.cookies.copy()
+                            if not self.cookies:
+                                raise Exception("No cookies found")
+                            logger.info("Login successful")
+                            break
+                        case _:
+                            raise Exception(f"Unknown Response {msg.msg}")
+        try:
+            r = self.session.get(qr_page, timeout=10).json()
+            qrToken = r["qrToken"]
+            img = b64decode(r["img"])
+            img = Image.open(io.BytesIO(img))
+            img.show()
+            print("Scan QR code")
+            asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
+        except Exception as e:
+            logger.exception(e)
+            raise Exception(f"QR login failed: {e}")
 
     def fuckWhatever(self):
         """Fuck whatever is found"""

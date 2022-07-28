@@ -15,6 +15,11 @@
 于是我打算直接抄家, 入它后端(*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
 ***
 ### 重要更新
+-> v2.3.0:
+1. 新增二维码登陆, 当前版本强制启用(由于登陆验证改变, 目前账号密码登陆失效) 详见[Login](#Login)
+2. 新增依赖 _websockets_
+3. 新增依赖 _Pillow_
+
 -> v2.2.0:
 1. 课程 ID 不再为必须参数
 2. 支持从文件读取课程枪毙清单, 详见 [_拉清单_](#拉清单)  
@@ -59,12 +64,14 @@
 {
   "username": "",
   "password": "",
+  "qrlogin": true,
   "proxies": {},
   "logLevel": "INFO"
 }
 ```
 * `username`: 账号 
 * `password`: 密码
+* `qrlogin`: 启用二维码登陆, 优先级高于账号密码
 * `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](#常见问题)
 * `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL` 
 
@@ -74,9 +81,11 @@
 ##### 使用命令行参数登入:
 ```bash
 python main.py -u <username> -p <password>
+python main.py -q
 ```
 * `-u` `--username`: 账号
 * `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p`  
+* `-q` `--qrlogin` : 启用二维码登陆  
 _*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_
 
 ***

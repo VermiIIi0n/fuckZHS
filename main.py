@@ -11,6 +11,7 @@ from utils import getConfigPath, getRealPath, versionCmp
 DEFAULT_CONFIG = {
     "username": "",
     "password": "",
+    "qrlogin": True,
     "proxies": {},
     "logLevel": "INFO"
 }
@@ -32,6 +33,7 @@ parser.add_argument("-p", "--password", type=str, help="If not set anywhere, wil
 parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default value is maximum speed found on site")
 parser.add_argument("-t", "--threshold", type=float, help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
 parser.add_argument("-l", "--limit", type=int, default=0, help="Time Limit (in minutes, 0 for no limit), default is 0")
+parser.add_argument("-q", "--qrlogin", action="store_true", help="Use QR Login")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
 parser.add_argument("-f", "--fetch", action="store_true", help="Fetch new course list")
 parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
@@ -41,6 +43,7 @@ args = parser.parse_args()
 course = args.course
 username = args.username or config.username
 password = args.password or config.password
+qrlogin = args.qrlogin or config.qrlogin or True # Force enabled for v2.3.*
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
 proxies = config.proxies
 
@@ -89,7 +92,7 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 
 ### first you need to login to get cookies
 try:
-    fucker.login(username, password)
+    fucker.qrlogin() if qrlogin else fucker.login(username, password)
     print("Login Successful\n")
 except Exception as e:
     print(e)
@@ -112,7 +115,7 @@ if args.fetch:
 if not course and os.path.isfile(exec_list):
     with open(exec_list, "r") as f:
         try:
-            course = [c["id"] for c in json.load(f)]
+            course = [str(c["id"]) for c in json.load(f)]
         except Exception as e:
             print(f"*Failed to load course list from file: {e}")
             exit(1)

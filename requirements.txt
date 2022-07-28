@@ -1,2 +1,4 @@
-requests
+Pillow
 pycryptodome
+requests
+websockets

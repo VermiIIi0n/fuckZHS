@@ -1,5 +1,6 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from copy import deepcopy
+
 class ObjDict(dict):
 
     @property
@@ -78,18 +79,18 @@ class ObjDict(dict):
         NOTICE: will also set default value for all sub-dicts
         * set value to return when key is not found
         * set to `ObjDict.NotExist` to raise KeyError when key is not found
-        * set to mutable objects is *NOT RECOMMENDED*, since all references share the same object
+        * when set to a mutable object, it will be deepcopied before being set
         """
         self.__dict__["_default"] = value
         self.update(self)
 
     def copy(self):
-        """### return a shallow copy"""
+        """### returns a shallow copy"""
         return ObjDict(self, recursive=False, default=self.default)
 
-    def __getattr__(self, name, default=NotExist):
+    def __getattr__(self, name):
         try:
-            return self[name] if default is self.NotExist else self.get(name,default)
+            return self[name]
         except KeyError:
             raise AttributeError(f"{name} not found in {self}")
 
@@ -109,66 +110,5 @@ class ObjDict(dict):
         elif self.default is ObjDict.NotExist:
             raise KeyError(f"{name} not found in {self}")
         else:
-            return self.default
-
-if __name__ == "__main__":
-    # dict method test
-    a = {}
-    b = {'a':a}
-    a['b'] = b
-    c = ObjDict(b) # loop reference test
-    print(c)
-    d = {'a':1, 'b':2}
-    e = ObjDict(d)
-    assert isinstance(e, dict)
-    e.update({'c':3}, g=4)
-    ec = e.copy()
-    assert e == ec
-    assert e is not ec
-    assert e['a'] == 1
-    assert e.get('not_exist', None) is None
-    assert c.a is c.a.b.a
-    assert c is c.a.b
-    e.update(b)
-    assert e is not e.a.b # dummy works fine
-    assert e.a is e.a.b.a
-    e.update(c)
-    assert e.a is c.a
-
-    # ObjDict method test
-    e.a = 5
-    assert e.a == 5
-    e.ar = ObjDict({'ls':[{'name':'d1', 'value':1}, {'name':'d2', 'value':2}]}).ls
-    assert e.ar[0].name == 'd1'
-    assert e.ar[1].value == 2
-    try:
-        print(f"not a key: {e.not_a_key}")
-        raise Exception("should not reach here")
-    except AttributeError:
-        print("successfully raised AttributeError for not_a_key")
-    e.default = None
-    assert e.not_a_key is None
-
-    # default broadcast test
-    e.c = c
-    e.default = "dft"
-    assert e.not_exist == "dft"
-    assert e.default == e.c.default
-    e.id = 114514
-    assert c.id != e.id
-    ecp = e.copy()
-    assert e.default == ecp.default
-    assert e.default is not ObjDict.NotExist
-
-    # extreme usage test
-    f = ObjDict({'a':{'b':{'c':1}}})
-    try:
-        f.NotExist = 1
-        raise Exception("should not reach here")
-    except AttributeError:
-        print("successfully raised AttributeError for NotExist")
-    try:
-        f._default = 1
-        raise Exception("should not reach here")
-    except AttributeError:
-        print("successfully raised AttributeError for _default")
+            self[name] = deepcopy(self.default)
+            return self[name]
