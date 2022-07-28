@@ -92,7 +92,16 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 
 ### first you need to login to get cookies
 try:
-    fucker.qrlogin() if qrlogin else fucker.login(username, password)
+    if qrlogin:
+        import io
+        from PIL import Image
+        def showImage(img):
+            img = Image.open(io.BytesIO(img))
+            img.show()
+        print("Scan QR code")
+        fucker.login(use_qr=True, qr_callback=showImage)
+    else:
+         fucker.login(username, password)
     print("Login Successful\n")
 except Exception as e:
     print(e)
@@ -139,8 +148,8 @@ for c in course:
         try:
             fucker.fuckCourse(course_id=c)
             course.remove(c)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(e)
 if args.videos:
     print(f"*the following videos are not fucked: {args.videos}")
     

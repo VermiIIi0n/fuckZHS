@@ -6,7 +6,7 @@ import json
 IV = b"1g3qqdh4jvbskb9x"
 
 HOME_KEY  = b"7q9oko0vqb3la20r"
-VIDEO_KEY = b"qz632524n86i7fk9"
+VIDEO_KEY = b"azp53h0kft7qi78q"
 QA_KEY    = b"w1k5ntxecb8wmbc2"
 
 class Cipher:
@@ -101,8 +101,8 @@ if __name__ == "__main__":
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
     #print(getEv([1,2,3,4,'你']))
-    d = "NEuH3llD9woD4DQgu0k6Uvp5yyo8WT84Dq5lU2iPwvgKNatePzJ+vu/4PRaNYy+K"
-    r = ObjDict(json.loads(h.decrypt(d)))
+    d = "eo8zZpVghvx/CXsF1xTf6DaSVfioO/XS9PVwJh4HB6FiVIAVXT75rpsVuxmbt2kuAmzV2VSB1x6nEYX4+/tTHpO93D1DUC1jS0q5Gv0PFfNXjQRwLPLuhCVgaOOrejtvNngcG8ku5afL3heDnzamOrrrh+so8b+AkaNzp2NjowZesVmzpSOpVRx4EZbRCdxOV1qR4tWf1zTRVeDcbdrTq7y+rYDzuTK4DUCdgjmyU3w="
+    r = ObjDict(json.loads(v.decrypt(d)))
     print(r)
     #print(r.watchPoint)
     #print(revEv(r.ev))

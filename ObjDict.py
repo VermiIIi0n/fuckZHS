@@ -112,3 +112,8 @@ class ObjDict(dict):
         else:
             self[name] = deepcopy(self.default)
             return self[name]
+
+    def __deepcopy__(self, memo):
+            shadow = dict(self)
+            copy = deepcopy(shadow, memo)
+            return ObjDict(copy, recursive=self.__dict__["_recursive"], default=self.default)

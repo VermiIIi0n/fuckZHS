@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+import io
 import sys
 from datetime import timedelta
+from PIL import Image
 
 def HMS(*args, **kw):
     return str(timedelta(*args, **kw))
 
 def strToClass(class_name: str, module: str="__main__"):
     return getattr(sys.modules[module], class_name)
+
+def showImage(img):
+     img = Image.open(io.BytesIO(img))
+     img.show()
 
 def getDir():
     return os.path.dirname(os.path.realpath(__file__))

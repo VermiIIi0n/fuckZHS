@@ -10,7 +10,6 @@ from getpass import getpass
 from ObjDict import ObjDict
 from logger import logger
 from sign import sign
-from PIL import Image
 import websockets
 import requests
 import asyncio
@@ -20,7 +19,6 @@ import time
 import json
 import re
 import os
-import io
 
 """
 ⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
@@ -108,8 +106,13 @@ class Fucker:
                 raise ValueError("Cookies invalid")
         logger.debug(f"set cookies: {self._cookies}")
 
-    def login(self, username: str=None, password: str=None, interactive: bool=True):
+    def login(self, username: str=None, password: str=None, interactive: bool=True, use_qr:bool=False, qr_callback: callable=None):
         """* `interactive`: whether to use interactive mode to login"""
+        if use_qr:
+            if not callable(qr_callback):
+                raise ValueError("callable qr_callback is required when use_qr is True")
+            self._qrlogin(qr_callback)
+            return
         while not username or not password:
             if not interactive:
                 raise ValueError("username or password being empty")
@@ -163,7 +166,7 @@ class Fucker:
             logger.exception(e)
             raise Exception(f"Login failed: {e}")
 
-    def qrlogin(self):
+    def _qrlogin(self, qr_callback):
         """Login using qr code"""
         login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
         qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
@@ -187,16 +190,19 @@ class Fucker:
                                 raise Exception("No cookies found")
                             logger.info("Login successful")
                             break
+                        case 2:
+                            print("QR code expired")
+                            raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
                         case _:
                             raise Exception(f"Unknown Response {msg.msg}")
         try:
             r = self.session.get(qr_page, timeout=10).json()
             qrToken = r["qrToken"]
             img = b64decode(r["img"])
-            img = Image.open(io.BytesIO(img))
-            img.show()
-            print("Scan QR code")
+            qr_callback(img)
             asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
+        except TimeLimitExceeded:
+            self._qrlogin(qr_callback) # timeout? try again!
         except Exception as e:
             logger.exception(e)
             raise Exception(f"QR login failed: {e}")
@@ -348,6 +354,7 @@ class Fucker:
         chapters = ctx.chapters
         
         # start fucking
+        tprint(f"Fucking Zhidao course: {course.courseInfo.name or course.courseInfo.enName}")
         begin_time = time.time() # real world time
         prefix = self.prefix # prefix for tree-like print
         w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
@@ -510,7 +517,8 @@ class Fucker:
         '''### cross sites login for zhidao course'''
         login_url = "https://studyservice-api.zhihuishu.com/login/gologin"
         params = {"fromurl": f"https://studyh5.zhihuishu.com/videoStudy.html#/studyVideo?recruitAndCourseId={RAC_id}"}
-        return self.session.get(login_url, params=params, proxies=self.proxies)
+        logger.debug(f"GET {login_url}\nparams: {params}\n")
+        return self.session.get(login_url, params=params, proxies=self.proxies, timeout=10)
 
     def queryCourse(self, RAC_id):
         '''### query course info for zhidao share course'''
