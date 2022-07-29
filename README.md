@@ -34,6 +34,8 @@
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
 * _requests_ 
 * _pycryptodome_ 或其等价替代
+* _websockets_
+* _Pillow>=8.1.1_
 
 执行 `pip install -r requirements.txt` 即可安装依赖
 ***
@@ -80,10 +82,11 @@
 * `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](#常见问题)
 * `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL` 
 * `qr_extra`: QR 相关配置
-   * `show_in_terminal: 将二维码打印至终端
+   * `show_in_terminal`: 将二维码打印至终端
    * `ensure_unicode`: 仅使用 Unicode 字符打印二维码
-   * `char_width`: 设置 `ensure_unicode` 为真时的字符宽度
-填入账号密码即可无干预自动登入  
+   * `char_width`: 设置 `ensure_unicode` 为真时的字符宽度  
+   
+~填入账号密码即可无干预自动登入~ 当前失效  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
 ##### 使用命令行参数登入:
@@ -92,9 +95,8 @@ python main.py -u <username> -p <password>
 python main.py -q
 ```
 * `-u` `--username`: 账号
-* `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p`  
+* `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p` _*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_  
 * `-q` `--qrlogin` : 启用二维码登陆  
-_*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_
 
 ***
 #### Fxxking
