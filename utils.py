@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
 import io
+import os
 import sys
+import platform
+from PIL import Image, ImageOps
 from datetime import timedelta
-from PIL import Image
 
 def HMS(*args, **kw):
     return str(timedelta(*args, **kw))
@@ -12,9 +13,36 @@ def HMS(*args, **kw):
 def strToClass(class_name: str, module: str="__main__"):
     return getattr(sys.modules[module], class_name)
 
-def showImage(img):
-     img = Image.open(io.BytesIO(img))
-     img.show()
+def showImage(img, show_in_terminal=False, **kw):
+    if show_in_terminal:
+        terminalShowImage(img, **kw)
+    else:
+        img = Image.open(io.BytesIO(img))
+        img.show()
+
+def terminalShowImage(img, char_width=2, ensure_unicode=False):
+    img = Image.open(io.BytesIO(img))
+    qr = img.resize((47,47), Image.Resampling.NEAREST)
+    qr = ImageOps.grayscale(qr)
+    if ensure_unicode:
+        black = '■'*char_width
+        white = ' '*char_width
+        new_line = '\n'
+    elif platform.system() == "Windows":
+        white = '▇'
+        black = '  '
+        new_line = '\n'
+    else:
+        white = '\033[0;37;47m  '
+        black = '\033[0;37;40m  '
+        new_line = '\033[0m\n'
+    col, row = qr.size
+    qr_str = ""
+    for i in range(row):
+        for j in range(col):
+            qr_str += white if qr.getpixel((j, i)) < 128 else black
+        qr_str += new_line
+    print(qr_str)
 
 def getDir():
     return os.path.dirname(os.path.realpath(__file__))

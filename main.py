@@ -3,9 +3,11 @@ import re
 import json
 import argparse
 import requests
+from functools import partial
 from fucker import Fucker
 from logger import logger
 from ObjDict import ObjDict
+from utils import showImage
 from utils import getConfigPath, getRealPath, versionCmp
 
 DEFAULT_CONFIG = {
@@ -13,14 +15,19 @@ DEFAULT_CONFIG = {
     "password": "",
     "qrlogin": True,
     "proxies": {},
-    "logLevel": "INFO"
+    "logLevel": "INFO",
+    "qr_extra": {
+        "show_in_terminal": False,
+        "char_width": 2,
+        "ensure_unicode": False
+    }
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
     with open(getConfigPath(), 'r') as f:
-        config = ObjDict(json.load(f))
+        config = ObjDict(json.load(f), default=None)
 else:
-    config = ObjDict(DEFAULT_CONFIG)
+    config = ObjDict(DEFAULT_CONFIG, default=None)
     with open(getConfigPath(), 'w') as f:
         json.dump(config, f, indent=4)
 
@@ -36,6 +43,9 @@ parser.add_argument("-l", "--limit", type=int, default=0, help="Time Limit (in m
 parser.add_argument("-q", "--qrlogin", action="store_true", help="Use QR Login")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
 parser.add_argument("-f", "--fetch", action="store_true", help="Fetch new course list")
+parser.add_argument("--show_in_terminal", action="store_true", help="Show QR in terminal")
+parser.add_argument("--qr_char_width", type=int, default=0, help="QR Code Unicode Character Width")
+parser.add_argument("--qr_ensure_unicode", action="store_true", help="Make QR Code Unicode")
 parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
@@ -44,6 +54,10 @@ course = args.course
 username = args.username or config.username
 password = args.password or config.password
 qrlogin = args.qrlogin or config.qrlogin or True # Force enabled for v2.3.*
+qr_extra = config.qr_extra or ObjDict({}, default=None) # Avoid AttributeError
+qr_char_width = args.qr_char_width or qr_extra.char_width or 1
+qr_ensure_unicode = args.qr_ensure_unicode or qr_extra.ensure_unicode or False
+show_in_terminal = args.show_in_terminal or qr_extra.show_in_terminal or False
 logger.setLevel("DEBUG" if args.debug else config.logLevel)
 proxies = config.proxies
 
@@ -93,13 +107,9 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 ### first you need to login to get cookies
 try:
     if qrlogin:
-        import io
-        from PIL import Image
-        def showImage(img):
-            img = Image.open(io.BytesIO(img))
-            img.show()
         print("Scan QR code")
-        fucker.login(use_qr=True, qr_callback=showImage)
+        callback = partial(showImage, show_in_terminal=show_in_terminal ,char_width=qr_char_width, ensure_unicode=qr_ensure_unicode)
+        fucker.login(use_qr=True, qr_callback=callback)
     else:
          fucker.login(username, password)
     print("Login Successful\n")
@@ -150,6 +160,7 @@ for c in course:
             course.remove(c)
         except Exception as e:
             logger.exception(e)
+            print(f"Error when fucking course {c}:\n{e}")
 if args.videos:
     print(f"*the following videos are not fucked: {args.videos}")
     

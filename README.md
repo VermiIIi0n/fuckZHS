@@ -66,15 +66,23 @@
   "password": "",
   "qrlogin": true,
   "proxies": {},
-  "logLevel": "INFO"
+  "logLevel": "INFO",
+  "qr_extra": {
+        "show_in_terminal": false,
+        "char_width": 2,
+        "ensure_unicode": false
+    }
 }
 ```
 * `username`: 账号 
 * `password`: 密码
-* `qrlogin`: 启用二维码登陆, 优先级高于账号密码
+* `qrlogin`: 启用二维码登陆, 方便在服务器上部署, 优先级高于账号密码
 * `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](#常见问题)
 * `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL` 
-
+* `qr_extra`: QR 相关配置
+   * `show_in_terminal: 将二维码打印至终端
+   * `ensure_unicode`: 仅使用 Unicode 字符打印二维码
+   * `char_width`: 设置 `ensure_unicode` 为真时的字符宽度
 填入账号密码即可无干预自动登入  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   
 
@@ -137,11 +145,15 @@ python main.py --fetch
 * `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
 * `-u`, `--username`: 账号
 * `-p`, `--password`: 密码
+* `-q`, `--qrlogin`: 
 * `-s`, `--speed`: ~~**POWERR AND SPEEEEED!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
 * `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成
 * `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
 * `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 ***(可能包含账号密码, 别乱分享, 当心被盒武)***
 * `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
+* `--show_in_terminal`: 将二维码打印至终端
+* `qr_char_width`: 设置 `ensure_unicode` 为真时的字符宽度
+* `qr_ensure_unicode`: 设置 `ensure_unicode` 仅使用 Unicode 字符打印二维码
 * `--proxy`: 代理设置, 本来用来调试的(e.g. http://127.0.0.1:8080)
 * `-h` `--help`: 显示帮助
 

@@ -193,6 +193,8 @@ class Fucker:
                         case 2:
                             print("QR code expired")
                             raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
+                        case 3:
+                            raise Exception(f"Login canceled")
                         case _:
                             raise Exception(f"Unknown Response {msg.msg}")
         try:
@@ -269,7 +271,7 @@ class Fucker:
         self.courses.zhidao = r.courseOpenDtos or []
         for i in range(2, int(math.ceil(total/5))+1):
             data["pageNo"] = i
-            r = self.zhidaoQuery(url, data, key=HOME_KEY).result
+            r = self.zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
             self.courses.zhidao += r.courseOpenDtos
         return self.courses.zhidao
 
