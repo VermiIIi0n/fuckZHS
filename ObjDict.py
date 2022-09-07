@@ -1,34 +1,42 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+from typing import Dict, Any, Optional
 from copy import deepcopy
+
 
 class ObjDict(dict):
 
     @property
-    def NotExist(self): # for default value
+    def NotExist(self):  # for default value
         return ObjDict.NotExist
-    
-    def __init__(self, d:dict=None, recursive=True, default=NotExist, *, antiloop_map = None):
+
+    def __init__(self, d: dict = None, recursive=True, default=NotExist, *, antiloop_map=None):
         '''
         ## ObjDict is a subclass of dict that allows for object-like access
         #### Preserved:
-        these preserved names are not allowed to be set using dot access, but you can access your version using `['name']` or `get`
+        these preserved names are not allowed to be set using dot access,
+        but you can access your version using `['name']` or `get`
         * `NotExist`: default value for missing key, will raise KeyError
         * `update`: just like dict.update(), but recursively converts nested dicts
         * `copy`: returns a shallow copy
         * Any attribute of the dict class
         * Any name starts with `_`
 
-        #### Precedence: 
+        #### Precedence:
         * `.` : Attribute > Key > Default
         * `[]` & `get` : Key > Default
 
         #### Params:
         * `d`: dict
-        * `default`: default value to return if key is not found, reset to ObjDict.NotExist to raise KeyError
+        * `default`: default value to return if key is not found,
+           reset to ObjDict.NotExist to raise KeyError
         * `recursive`: recursively try to convert all sub-objects in `d`
-        * `antiloop_map`: a dict to store the loop-detection, if you want to use the same ObjDict object in multiple places, you can pass a dict to `antiloop_map` to avoid infinite loop
+        * `antiloop_map`: a dict to store the loop-detection,
+           if you want to use the same ObjDict object in multiple places,
+           you can pass a dict to `antiloop_map` to avoid infinite loop
         '''
-        self.__dict__["_antiloop_map"] = {} if antiloop_map is None else antiloop_map # for reference loop safety
+        self.__dict__["_antiloop_map"] = {
+        } if antiloop_map is None else antiloop_map  # for reference loop safety
         self.__dict__["_default"] = default
         self.__dict__["_recursive"] = recursive
         d = d or {}
@@ -40,13 +48,14 @@ class ObjDict(dict):
             if not isinstance(d, dict) or kw:
                 d = dict(d, **kw)
             else:
-                self._convert(d) # create a dummy if not exist yet, prevent infinite-loop
+                # create a dummy if not exist yet, prevent infinite-loop
+                self._convert(d)
             for k, v in d.items():
                 self[k] = self._convert(v)
         finally:
-            self.__dict__["_antiloop_map"] = {} # reset the map
+            self.__dict__["_antiloop_map"] = {}  # reset the map
 
-    def _convert(self, v, recursive:bool=None):
+    def _convert(self, v: Any, recursive: Optional[bool] = None) -> Any:
         recursive = recursive if recursive is not None else self._recursive
         if not recursive:
             return v
@@ -84,27 +93,29 @@ class ObjDict(dict):
         self.__dict__["_default"] = value
         self.update(self)
 
-    def copy(self):
+    def copy(self) -> ObjDict:
         """### returns a shallow copy"""
         return ObjDict(self, recursive=False, default=self.default)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         try:
             return self[name]
         except KeyError:
             raise AttributeError(f"{name} not found in {self}")
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value):
         if name in {"NotExist", "update", "copy"} or name.startswith("_"):
-            raise AttributeError(f"set '{name}' with dot access is not allowed, consider using ['{name}']")
-        if name in self.__dict__: # cannot just call setattr(self, name, value), recursion error
+            raise AttributeError(
+                f"set '{name}' with dot access is not allowed, consider using ['{name}']")
+        # cannot just call setattr(self, name, value), recursion error
+        if name in self.__dict__:
             self.__dict__[name] = value
         elif hasattr(getattr(type(self), name, None), "__set__"):
             getattr(type(self), name).__set__(self, value)
         else:
             self[name] = value
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str):
         if name in self:
             return self.get(name)
         elif self.default is ObjDict.NotExist:
@@ -113,7 +124,9 @@ class ObjDict(dict):
             self[name] = deepcopy(self.default)
             return self[name]
 
-    def __deepcopy__(self, memo):
-            shadow = dict(self)
-            copy = deepcopy(shadow, memo)
-            return ObjDict(copy, recursive=self.__dict__["_recursive"], default=self.default)
+    def __deepcopy__(self, memo: Dict[int, Any]):
+        copy = ObjDict({}, recursive=self.__dict__["_recursive"], default=self.default)
+        memo[id(self)] = copy
+        dummy = deepcopy(dict(self), memo)
+        copy.update(dummy)
+        return copy

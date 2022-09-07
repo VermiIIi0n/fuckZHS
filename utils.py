@@ -19,6 +19,7 @@ def showImage(img, show_in_terminal=False, **kw):
     else:
         img = Image.open(io.BytesIO(img))
         img.show()
+    print("Scan QR code")
 
 def terminalShowImage(img, char_width=2, ensure_unicode=False):
     img = Image.open(io.BytesIO(img))

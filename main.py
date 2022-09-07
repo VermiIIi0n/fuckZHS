@@ -20,12 +20,19 @@ DEFAULT_CONFIG = {
         "show_in_terminal": False,
         "char_width": 2,
         "ensure_unicode": False
-    }
+    },
+    "config_version": "1.0.0"
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
     with open(getConfigPath(), 'r') as f:
         config = ObjDict(json.load(f), default=None)
+        if "config_version" not in config or versionCmp(config.config_version, DEFAULT_CONFIG["config_version"]) < 0:
+            new = ObjDict(DEFAULT_CONFIG)
+            new.update(config)
+            config = new
+            with open(getConfigPath(), 'w') as f:
+                json.dump(config, f, indent=4)
 else:
     config = ObjDict(DEFAULT_CONFIG, default=None)
     with open(getConfigPath(), 'w') as f:
@@ -58,8 +65,8 @@ qr_extra = config.qr_extra or ObjDict({}, default=None) # Avoid AttributeError
 qr_char_width = args.qr_char_width or qr_extra.char_width or 1
 qr_ensure_unicode = args.qr_ensure_unicode or qr_extra.ensure_unicode or False
 show_in_terminal = args.show_in_terminal or qr_extra.show_in_terminal or False
-logger.setLevel("DEBUG" if args.debug else config.logLevel)
-proxies = config.proxies
+logger.setLevel("DEBUG" if args.debug else (config.logLevel or "WARNING"))
+proxies = config.proxies or {}
 
 if logger.getLevel() == "DEBUG":
     print("*****************************\n"+
@@ -107,7 +114,6 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 ### first you need to login to get cookies
 try:
     if qrlogin:
-        print("Scan QR code")
         callback = partial(showImage, show_in_terminal=show_in_terminal ,char_width=qr_char_width, ensure_unicode=qr_ensure_unicode)
         fucker.login(use_qr=True, qr_callback=callback)
     else:

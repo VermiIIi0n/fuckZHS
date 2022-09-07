@@ -35,9 +35,9 @@ class WatchPoint:
     def __init__(self, init:int=0):
         self.reset(init)
 
-    def add(self, end:int, start:int=0):
+    def add(self, end:int, start:int=None):
         wp_interval = 2 # watch point record interval in seconds
-        start = int(start) or self.last
+        start = self.last if start is None else start
         end = int(end)
         self.last = end
         for i in range(start, end+1)[::wp_interval]:
@@ -101,8 +101,8 @@ if __name__ == "__main__":
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
     #print(getEv([1,2,3,4,'你']))
-    d = "eo8zZpVghvx/CXsF1xTf6DaSVfioO/XS9PVwJh4HB6FiVIAVXT75rpsVuxmbt2kuAmzV2VSB1x6nEYX4+/tTHpO93D1DUC1jS0q5Gv0PFfNXjQRwLPLuhCVgaOOrejtvNngcG8ku5afL3heDnzamOrrrh+so8b+AkaNzp2NjowZesVmzpSOpVRx4EZbRCdxOV1qR4tWf1zTRVeDcbdrTq7y+rYDzuTK4DUCdgjmyU3w="
+    d = ""
     r = ObjDict(json.loads(v.decrypt(d)))
     print(r)
     #print(r.watchPoint)
-    #print(revEv(r.ev))
+    print(revEv(r.sdsew))

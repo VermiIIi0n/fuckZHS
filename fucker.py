@@ -10,10 +10,10 @@ from getpass import getpass
 from ObjDict import ObjDict
 from logger import logger
 from sign import sign
+import urllib.request
 import websockets
 import requests
 import asyncio
-import urllib
 import math
 import time
 import json
@@ -317,7 +317,7 @@ class Fucker:
         logger.info(f"{len(lesson_ids)} lessons, {len(videos)} videos")
 
         # get read-before, maybe unneccessary. BUTT hey, it's a POST request
-        self.queryStudyReadBefore(course_id, recruit_id)
+        # self.queryStudyReadBefore(course_id, recruit_id)
 
         # get study info, including watchState, studyTotalTime
         video_ids = [video.id for video in videos.values() if video.id]
@@ -420,6 +420,9 @@ class Fucker:
         # emulating video playing
         self.watchVideo(video.videoId)
 
+        # no idea what it is
+        self.threeDimensionalCourseWare(video.videoId)
+
         # prepare vars
         speed = self.speed or 1.5  # default speed for Zhidao is 1.5
         last_submit = played_time  # last pause time
@@ -473,11 +476,11 @@ class Fucker:
                 report = False # unset report flag
                 wp.add(played_time)
                 # now submit to database
-                self.saveDatabaseIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
+                self.saveDatabaseIntervalTimeV2(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
                 wp.reset(played_time)     # reset watch point
             ## report to cache
-            if elapsed_time % cache_interval == 0:
+            if False and elapsed_time % cache_interval == 0:
                 wp.add(played_time)
                 self.saveCacheIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
@@ -503,9 +506,12 @@ class Fucker:
         """set ok_code to None for no check"""
         cipher = Cipher(key)
         if setTimeStamp:
-            data["dateFormate"] = int(time.time())*1000 # somehow their timestamps are ending with 000
+            _t = int(time.time())*1000 # somehow their timestamps are ending with 000
+            data["dateFormate"] = _t
         logger.debug(f"{method} url: {url}\nraw_data: {json.dumps(data,indent=4,ensure_ascii=False)}")
         form ={"secretStr": cipher.encrypt(json.dumps(data))} if encrypt else data
+        if setTimeStamp:
+            form["dateFormate"] = _t
         ret = self._apiQuery(url, data=form, method=method)
         if ok_code is not None and ret.code != ok_code:
             ret.default = None
@@ -537,7 +543,7 @@ class Fucker:
     def queryStudyReadBefore(self, course_id, recruit_id):
         '''### query study read before for zhidao share course'''
         read_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStudyReadBefore"
-        return self.zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id}).data
+        return self.zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id}, ok_code=None).data
 
     def queryStudyInfo(self, lesson_ids:list, video_ids:list, recruit_id):
         '''### query study info for zhidao'''
@@ -645,6 +651,57 @@ class Fucker:
             "ev": getEv(raw_ev),
             "learningTokenId": token_id
         }
+        return self.zhidaoQuery(record_url, data=data).data
+
+    def threeDimensionalCourseWare(self, video_id):
+        '''### query three dimensional course ware for zhidao'''
+        ware_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/course/threeDimensionalCourseWare"
+        params = {"videoId": video_id}
+        return self.zhidaoQuery(ware_url, data=params, method="GET").data
+
+    def saveDatabaseIntervalTimeV2(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None, initial=False):
+        '''### save database interval time for zhidao'''
+        record_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveDatabaseIntervalTimeV2"
+        ctx = self.getZhidaoContext(RAC_id)
+        recruit_id = ctx.course.recruitId
+        video = ctx.videos[video_id]
+        if initial: # sometimes a request like this happens, I originally thought it is the initialization request, but I might be wrong
+            raw_ev = [
+                recruit_id,
+                video.chapterId, # this.chapterId
+                ctx.course.courseInfo.courseId,
+                video.lessonId, # this.smallLessonId
+                HMS(seconds=min(video.videoSec, int(played_time))) ,
+                int(played_time),
+                video.videoId, # this.videoId
+                '0', # this.data.studyStatus, always 0
+                int(played_time), # this.totalStudyTime
+                self.uuid
+            ]
+        else:
+            raw_ev = [
+                recruit_id,
+                video.lessonId, # this.lessonId
+                video.id, # this.smallLessonId
+                video.videoId, # this.videoId
+                video.chapterId, # this.chapterId
+                '0', # this.data.studyStatus, always 0
+                int(played_time-last_submit), # this.playTimes
+                int(played_time), # this.totalStudyTime
+                HMS(seconds=min(video.videoSec, int(played_time))),
+                self.uuid + "zhs"
+            ]
+        if not token_id:
+            token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
+            token_id = b64encode(str(token_id).encode()).decode()
+        data = {
+            "ewssw": watch_point,
+            "sdsew": getEv(raw_ev),
+            "zwsds": token_id,
+            "courseId": ctx.course.courseInfo.courseId
+        }
+        if initial:
+            data.pop("courseId")
         return self.zhidaoQuery(record_url, data=data).data
 
     def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None):
