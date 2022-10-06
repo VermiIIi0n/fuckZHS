@@ -72,7 +72,6 @@
   "logLevel": "INFO",
   "qr_extra": {
         "show_in_terminal": false,
-        "char_width": 2,
         "ensure_unicode": false
     }
 }
@@ -85,7 +84,6 @@
 * `qr_extra`: QR 相关配置
    * `show_in_terminal`: 将二维码打印至终端
    * `ensure_unicode`: 仅使用 Unicode 字符打印二维码
-   * `char_width`: 设置 `ensure_unicode` 为真时的字符宽度  
    
 ~填入账号密码即可无干预自动登入~ 当前失效  
  _*配置文件如果没有的话会在 main.py 执行时自动创建._   

@@ -13,36 +13,52 @@ def HMS(*args, **kw):
 def strToClass(class_name: str, module: str="__main__"):
     return getattr(sys.modules[module], class_name)
 
-def showImage(img, show_in_terminal=False, **kw):
+def showImage(img, show_in_terminal=False, ensure_unicode=False):
     if show_in_terminal:
-        terminalShowImage(img, **kw)
+        if ensure_unicode:
+            terminalShowImage_unicode(img)
+        else:
+            terminalShowImage_tty(img)
     else:
         img = Image.open(io.BytesIO(img))
         img.show()
     print("Scan QR code")
 
-def terminalShowImage(img, char_width=2, ensure_unicode=False):
+def terminalShowImage_unicode(img):
     img = Image.open(io.BytesIO(img))
     qr = img.resize((47,47), Image.Resampling.NEAREST)
     qr = ImageOps.grayscale(qr)
-    if ensure_unicode:
-        black = '■'*char_width
-        white = ' '*char_width
-        new_line = '\n'
-    elif platform.system() == "Windows":
-        white = '▇'
-        black = '  '
-        new_line = '\n'
-    else:
-        white = '\033[0;37;47m  '
-        black = '\033[0;37;40m  '
-        new_line = '\033[0m\n'
+    chars = [bytes((code,)).decode("cp437") for code in (255, 223, 220, 219)]
+    new_line = '\n'
     col, row = qr.size
+    def getPos(x, y):
+        below = (y+1 < row) and qr.getpixel((x, y+1)) < 128
+        return (qr.getpixel((x, y)) < 128) + below*2
     qr_str = ""
+    for i in range(0, row, 2):
+        qr_str += chars[0]
+        for j in range(col):
+            qr_str += chars[getPos(j, i)]
+        qr_str += chars[0] + new_line
+    print(chars[0]*49)
+    print(qr_str, end='')
+    print(chars[0]*49)
+
+def terminalShowImage_tty(img):
+    img = Image.open(io.BytesIO(img))
+    qr = img.resize((47,47), Image.Resampling.NEAREST)
+    qr = ImageOps.grayscale(qr)
+    white = '\033[0;37;47m  '
+    black = '\033[0;37;40m  '
+    new_line = '\033[0m\n'
+    col, row = qr.size
+    qr_str = white * 49 + new_line
     for i in range(row):
+        qr_str += white
         for j in range(col):
             qr_str += white if qr.getpixel((j, i)) < 128 else black
-        qr_str += new_line
+        qr_str += white + new_line
+    qr_str += white * 49 + new_line
     print(qr_str)
 
 def getDir():

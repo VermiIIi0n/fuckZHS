@@ -17,22 +17,25 @@ DEFAULT_CONFIG = {
     "proxies": {},
     "logLevel": "INFO",
     "qr_extra": {
-        "show_in_terminal": False,
-        "char_width": 2,
+        "show_in_terminal": True,
         "ensure_unicode": False
     },
-    "config_version": "1.0.0"
+    "config_version": "1.0.1"
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
-    with open(getConfigPath(), 'r') as f:
+    with open(getConfigPath(), 'r+') as f:
         config = ObjDict(json.load(f), default=None)
         if "config_version" not in config or versionCmp(config.config_version, DEFAULT_CONFIG["config_version"]) < 0:
-            new = ObjDict(DEFAULT_CONFIG)
+            new = ObjDict(DEFAULT_CONFIG, default=None)
+            config.pop("qr_extra", None)
+            config.pop("config_version", None)
             new.update(config)
             config = new
-            with open(getConfigPath(), 'w') as f:
-                json.dump(config, f, indent=4)
+            f.seek(0)
+            json.dump(config, f, indent=4)
+            f.truncate()
+            print("****Config file updated****")
 else:
     config = ObjDict(DEFAULT_CONFIG, default=None)
     with open(getConfigPath(), 'w') as f:
@@ -51,8 +54,6 @@ parser.add_argument("-q", "--qrlogin", action="store_true", help="Use QR Login")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
 parser.add_argument("-f", "--fetch", action="store_true", help="Fetch new course list")
 parser.add_argument("--show_in_terminal", action="store_true", help="Show QR in terminal")
-parser.add_argument("--qr_char_width", type=int, default=0, help="QR Code Unicode Character Width")
-parser.add_argument("--qr_ensure_unicode", action="store_true", help="Make QR Code Unicode")
 parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
@@ -61,10 +62,9 @@ course = args.course
 username = args.username or config.username
 password = args.password or config.password
 qrlogin = args.qrlogin or config.qrlogin or True # Force enabled for v2.3.*
-qr_extra = config.qr_extra or ObjDict({}, default=None) # Avoid AttributeError
-qr_char_width = args.qr_char_width or qr_extra.char_width or 1
-qr_ensure_unicode = args.qr_ensure_unicode or qr_extra.ensure_unicode or False
-show_in_terminal = args.show_in_terminal or qr_extra.show_in_terminal or False
+qr_extra = config.qr_extra or ObjDict(default=None)
+show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal or False
+ensure_unicode = qr_extra.ensure_unicode or False
 logger.setLevel("DEBUG" if args.debug else (config.logLevel or "WARNING"))
 proxies = config.proxies or {}
 
@@ -75,21 +75,18 @@ if logger.getLevel() == "DEBUG":
           "*****************************\n")
 
 if args.proxy: # parse proxy
-    scheme = re.search(r"^(\w+)://", args.proxy.strip())
-    if scheme is None:
-        print("*Invalid proxy, can't parse scheme")
-        exit(1)
-    scheme = scheme.group(1).lower()
-    match scheme:
-        case "http"|"https":
+    match args.proxy.lower().split("://"):
+        case ["http"|"https", proxy]:
             proxies["http"] = args.proxy
             proxies["https"] = args.proxy
-        case "socks4":
-            proxies["socks4"] = args.proxy
-        case "socks5":
+        case ["socks5", proxy]:
             proxies["socks5"] = args.proxy
-        case _:
-            print(f"*Unsupported proxy type: {scheme}")
+        case ["all", proxy]:
+            proxies["http"] = args.proxy
+            proxies["https"] = args.proxy
+            proxies["socks5"] = args.proxy
+        case [schema]:
+            print(f"*Unsupported proxy type: {schema}")
             exit(1)
 
 # check update
@@ -114,7 +111,7 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 ### first you need to login to get cookies
 try:
     if qrlogin:
-        callback = partial(showImage, show_in_terminal=show_in_terminal ,char_width=qr_char_width, ensure_unicode=qr_ensure_unicode)
+        callback = partial(showImage, show_in_terminal=show_in_terminal, ensure_unicode=ensure_unicode)
         fucker.login(use_qr=True, qr_callback=callback)
     else:
          fucker.login(username, password)
