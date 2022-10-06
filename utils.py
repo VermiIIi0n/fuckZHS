@@ -56,7 +56,7 @@ def terminalShowImage_tty(img):
     for i in range(row):
         qr_str += white
         for j in range(col):
-            qr_str += white if qr.getpixel((j, i)) < 128 else black
+            qr_str += white if qr.getpixel((j, i)) > 128 else black
         qr_str += white + new_line
     qr_str += white * 49 + new_line
     print(qr_str)
