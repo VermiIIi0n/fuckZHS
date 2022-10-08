@@ -14,21 +14,10 @@
 因为它会检查 _DevTools_ 是否打开, 如果打开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
 于是我打算直接抄家, 入它后端(*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
 ***
-### 重要更新
--> v2.3.0:
-1. 新增二维码登陆, 当前版本强制启用(由于登陆验证改变, 目前账号密码登陆失效) 详见[Login](#Login)
-2. 新增依赖 _websockets_
-3. 新增依赖 _Pillow_
-4. 没时间维护, 代码屎山化严重, API文档部分过时, 请见谅
-
--> v2.2.0:
-1. 课程 ID 不再为必须参数
-2. 支持从文件读取课程枪毙清单, 详见 [_拉清单_](#拉清单)  
-
--> v2.0.0:
-1. 新增 知到共享学分课 API(studyservice-api) 的支持, 参考了 [luoyily](https://github.com/luoyily/zhihuishu-tool) 与 [zhixiaobai](https://github.com/zhixiaobai/Python-zhihuishu) 的 repo
-2. 移除依赖 _selenium_
-3. 新增依赖 _pycryptodome_
+### 实用链接
+* [版本更新注意事项](https://github.com/VermiIIi0n/fuckZHS/discussions/24)
+* [常见问题](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
+* [讨论区](https://github.com/VermiIIi0n/fuckZHS/discussions)
 ***
 ### 准备工作
 您需要准备以下东西
@@ -153,36 +142,11 @@ python main.py --fetch
 * `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 ***(可能包含账号密码, 别乱分享, 当心被盒武)***
 * `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
 * `--show_in_terminal`: 将二维码打印至终端
-* `qr_char_width`: 设置 `ensure_unicode` 为真时的字符宽度
-* `qr_ensure_unicode`: 设置 `ensure_unicode` 仅使用 Unicode 字符打印二维码
 * `--proxy`: 代理设置, 本来用来调试的(e.g. http://127.0.0.1:8080)
 * `-h` `--help`: 显示帮助
 
 运行示例如下:
 ![运行示例](./images/running.png)  
-***
-#### 常见问题
-* 登入失败
-  * 检查您的账号密码是否有误
-  * 先用浏览器登入一次看看, 可能您的 IP 地址被认为是异地了, 需要短信验证
-  * 解决 SSL 证书错误, 见下文
-* 请求响应: -12 "需要滑块验证" (触发原因不明)
-  * 浏览器登入后手动过一次验证
-  * 降低单次学习的时间
-  * 本脚本会随机暂停一分钟以缓解这个问题, 您可以在源码中增加概率
-* 请求响应: -1 "无法处理请求"
-  * 某些请求被认为内容不合法了, 因为我测试例很少, 可能有些特例覆盖不全, 请把错误日志贴上, 开个 issue, 我尽力解决
-* 语法错误
-  * 喂, 伙计, _Python_ 版本对了没?
-* SSL证书错误, _Windows_ 上开着 _Clash_ 之类的代理可能会报证书错误
-  * 直接关闭系统代理
-  * 将 _Clash_ 改为 TUN 模式, 且关闭系统代理, 相当于改成透明代理, 不影响上网 ***(推荐)***
-  * 配置文件中编辑 `"proxies":{"https":""}`
-* 还是无法解决?
-  * 建议先开启 DEBUG 模式, 自行查看报错信息, 如果确实是我的锅就劳烦开个 issue
-  * 解决提出问题的人 ***(推荐)***  
-  ***JUST DO IT!***  
-    ![JUST_DO_IT](./images/just_do_it.jpg)
 
 指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
 ***
