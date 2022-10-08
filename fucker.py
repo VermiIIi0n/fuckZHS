@@ -38,7 +38,10 @@ import os
 ⣿⣿⣿⣶⣶⣮⣥⣒⠲⢮⣝⡿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿⣿⣿
 """
 
-class TimeLimitExceeded(Exception):
+class TimeLimitExceeded(TimeoutError):
+    pass
+
+class CaptchaException(Exception):
     pass
 
 class Fucker:
@@ -376,6 +379,11 @@ class Fucker:
                             tprint(prefix)
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
+                        except CaptchaException:
+                            logger.info("Captcha required")
+                            tprint(prefix)
+                            tprint(f"{prefix}##Captcha required\n")
+                            return
                         except Exception as e:
                             logger.exception(e)
                             tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
@@ -515,8 +523,12 @@ class Fucker:
         ret = self._apiQuery(url, data=form, method=method)
         if ok_code is not None and ret.code != ok_code:
             ret.default = None
-            e = Exception(f"code: {ret.code} "+
-                          f"msg: {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
+            match ret.code:
+                case -12:
+                    e = CaptchaException("captcha required")
+                case _:
+                    e = Exception(f"code: {ret.code} "+
+                            f"msg: {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
             logger.error(e)
             raise e
         return ret

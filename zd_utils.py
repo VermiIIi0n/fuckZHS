@@ -7,7 +7,8 @@ IV = b"1g3qqdh4jvbskb9x"
 
 HOME_KEY  = b"7q9oko0vqb3la20r"
 VIDEO_KEY = b"azp53h0kft7qi78q"
-QA_KEY    = b"w1k5ntxecb8wmbc2"
+QA_KEY    = b"kcGOlISPkYKRksSK"
+EXAM_KEY  = b"onbfhdyvz8x7otrp"
 
 class Cipher:
     def __init__(self, key:bytes=VIDEO_KEY, iv:bytes=IV):
@@ -100,9 +101,10 @@ if __name__ == "__main__":
     v = Cipher()
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
+    e = Cipher(EXAM_KEY)
     #print(getEv([1,2,3,4,'你']))
-    d = ""
-    r = ObjDict(json.loads(v.decrypt(d)))
+    d = "R8b5YgowBZhvyiaFlYAhdoTbupkjQBWiT2cwpDf275SvouM6xvxeAv9YdvdYw97tfmjBuqoXPcj7ptqnWJcFPwtWZMv6Ptld70F5yIl8R9Q="
+    r = ObjDict(json.loads(q.decrypt(d)))
     print(r)
     #print(r.watchPoint)
     print(revEv(r.sdsew))

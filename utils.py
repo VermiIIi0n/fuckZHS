@@ -3,7 +3,6 @@
 import io
 import os
 import sys
-import platform
 from PIL import Image, ImageOps
 from datetime import timedelta
 
@@ -20,8 +19,9 @@ def showImage(img, show_in_terminal=False, ensure_unicode=False):
         else:
             terminalShowImage_tty(img)
     else:
+        import threading
         img = Image.open(io.BytesIO(img))
-        img.show()
+        threading.Thread(target=img.show).run()
     print("Scan QR code")
 
 def terminalShowImage_unicode(img):
