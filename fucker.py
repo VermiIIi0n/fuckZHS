@@ -382,7 +382,7 @@ class Fucker:
                         except CaptchaException:
                             logger.info("Captcha required")
                             tprint(prefix)
-                            tprint(f"{prefix}##Captcha required\n")
+                            tprint(f"{prefix}##Captcha required\a\n")
                             return
                         except Exception as e:
                             logger.exception(e)
@@ -415,7 +415,9 @@ class Fucker:
         token_id = b64encode(str(token_id).encode()).decode()
 
         # get questions
-        questions = self.loadVideoPointerInfo(RAC_id, video_id).questionPoint
+        questions: ObjDict = self.loadVideoPointerInfo(RAC_id, video_id)
+        questions.default = None
+        questions = questions.questionPoint or []
         questions = sorted(questions, key=lambda x: x.timeSec, reverse=True) if questions else None
         while questions and questions[-1].timeSec <= played_time:
             questions.pop() # remove questions that are already answered
@@ -942,14 +944,18 @@ class Fucker:
         def watch():
             # get video link
             r = requests.get(parse_url, params={
-                                        "jsonpCallBack": "result",
-                                        "videoID": str(video_id),
-                                        "_": int(time.time()*1000)
-                                    },
+                                "jsonpCallBack": "result",
+                                "videoID": str(video_id),
+                                "_": int(time.time()*1000)
+                            },
                             cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
             r = re.match(r"^result\((.*)\)$",r.text).group(1)
             url = ObjDict(json.loads(r)).result.lines[0].lineUrl
-            requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
+            try:
+                requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
+            except Exception as e:
+                logger.error(f"Failed to watch video {video_id}")
+                logger.exception(e)
         watch_thread = Thread(target=watch)
         watch_thread.start()
 
