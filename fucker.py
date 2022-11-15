@@ -19,6 +19,7 @@ import time
 import json
 import re
 import os
+from push import pusher
 
 """
 ⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
@@ -376,16 +377,19 @@ class Fucker:
                             self.fuckZhidaoVideo(RAC_id, video.videoId)
                         except TimeLimitExceeded as e:
                             logger.info(f"Fucking time limit exceeded: {e}")
+                            pusher("fuckZHS","刷课已完成")
                             tprint(prefix)
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
                         except CaptchaException:
                             logger.info("Captcha required")
+                            pusher("fuckZHS","需要提供验证码")
                             tprint(prefix)
                             tprint(f"{prefix}##Captcha required\a\n")
                             return
                         except Exception as e:
                             logger.exception(e)
+                            pusher("fuckZHS",e)
                             tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
         except KeyboardInterrupt:
             logger.info("User interrupted")
