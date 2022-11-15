@@ -20,7 +20,11 @@ DEFAULT_CONFIG = {
         "show_in_terminal": True,
         "ensure_unicode": False
     },
-    "config_version": "1.0.1"
+    "push": {
+        "enable": False,
+        "token": ""
+    },
+    "config_version": "1.1.0"
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
@@ -67,6 +71,7 @@ show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal or 
 ensure_unicode = qr_extra.ensure_unicode or False
 logger.setLevel("DEBUG" if args.debug else (config.logLevel or "WARNING"))
 proxies = config.proxies or {}
+push_token = config.push.enable and config.push.token or ""
 
 if logger.getLevel() == "DEBUG":
     print("*****************************\n"+
@@ -106,7 +111,8 @@ with open(getRealPath("meta.json"), "r") as f:
         print("*Failed to check update\n")
 
 ### create an instance, now we are talking... or fucking
-fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit)
+fucker = Fucker(proxies=proxies, speed=args.speed,
+               end_thre=args.threshold, limit=args.limit, push_token=push_token)
 
 ### first you need to login to get cookies
 try:
