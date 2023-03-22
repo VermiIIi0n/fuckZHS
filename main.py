@@ -32,7 +32,8 @@ if os.path.isfile(getConfigPath()):
         config = ObjDict(json.load(f), default=None)
         if "config_version" not in config or versionCmp(config.config_version, DEFAULT_CONFIG["config_version"]) < 0:
             new = ObjDict(DEFAULT_CONFIG, default=None)
-            config.pop("qr_extra", None)
+            if versionCmp(config.config_version, "1.1.0") < 0:
+                config.pop("qr_extra", None)
             config.pop("config_version", None)
             new.update(config)
             config = new
@@ -154,7 +155,7 @@ if not course:
     exit(0)
 
 ### auto detect mode
-for c in course:
+for c in course.copy():
     if args.videos:
         for v in args.videos:
             try:

@@ -38,15 +38,11 @@
 
 ## 准备工作
 
-您需要准备以下东西
+您还需要做以下准备:
 
 * _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
-* _requests_
-* _pycryptodome_ 或其等价替代
-* _websockets_
-* _Pillow>=8.1.1_
+* 执行 `pip install -r requirements.txt` 安装依赖
 
-执行 `pip install -r requirements.txt` 即可安装依赖
 ***
 
 ## 如何使用
@@ -133,9 +129,9 @@ python main.py -q
 
 ```bash
 cd fuckZHS
-python main.py # 刷所有课
-# 只刷课程 ID 为 114514 的课
-python main.py -c 114514
+python main.py # 如果 execution.json 不存在的话, 刷所有课
+# 只刷课程 ID 为 114514 和 1919180 的课
+python main.py -c 114514 1919180
 # 想秒过可以设个很高的 SPEEEED
 python main.py -s 444 # 我就感觉到快, 有种催人ban的感觉
 # 又或者可以限制每节课学习25分钟
@@ -143,7 +139,7 @@ python main.py -c 114514 -l 25
 # 遇到问题想开 debug 模式, 顺带加个代理?
 python main.py -c 114514 -d --proxy http://127.0.0.1:2333
 # 又比如您想只干某几个视频, 那您可以使用 -v 传入视频 ID
-python main.py -c 114514 -v 4060 9891
+python main.py -c 114514 -v 1989 604
 ```
 
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
