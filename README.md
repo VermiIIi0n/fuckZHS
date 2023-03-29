@@ -100,7 +100,8 @@
 * `qr_extra`: QR 相关配置
   * `show_in_terminal`: 将二维码打印至终端
   * `ensure_unicode`: 仅使用 Unicode 字符打印二维码
-* `push`: 基于 [pushplus](https://www.pushplus.plus) 的推送服务
+* `pushplus`: 基于 [pushplus](https://www.pushplus.plus) 的推送服务
+* `bark`: 基于 [bark](https://github.com/Finb/Bark) 的推送服务
   * `enable`: 启用推送
   * `token`: 推送 token
 

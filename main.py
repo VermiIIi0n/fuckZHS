@@ -23,9 +23,13 @@ DEFAULT_CONFIG = {
         "show_in_terminal": None,
         "ensure_unicode": False
     },
-    "push": {
+    "pushplus": {
         "enable": False,
         "token": ""
+    },
+    "bark":{
+        "enable": False,
+        "token": "https://example.com/xxxxxxxxx"
     },
     "config_version": "1.2.0"
 }
@@ -92,7 +96,8 @@ if show_in_terminal is None:
 ensure_unicode = qr_extra.ensure_unicode or False
 logger.setLevel("DEBUG" if args.debug else (config.logLevel or "WARNING"))
 proxies = config.proxies or {}
-push_token = config.push.enable and config.push.token or ""
+pushplus_token = config.pushplus.enable and config.pushplus.token or ""
+bark_token = config.bark.enable and config.bark.token or ""
 
 if logger.getLevel() == "DEBUG":
     print("*****************************\n" +
@@ -133,7 +138,7 @@ with open(getRealPath("meta.json"), "r") as f:
 
 # create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed,
-                end_thre=args.threshold, limit=args.limit, push_token=push_token)
+                end_thre=args.threshold, limit=args.limit, pushplus_token=pushplus_token, bark_token=bark_token)
 
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False
