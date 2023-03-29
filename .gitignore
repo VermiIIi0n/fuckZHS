@@ -1,6 +1,7 @@
 **/NoUpload
 **/logs
 config.json
+cookies.json
 execution.json
 *.js
 .DS_Store

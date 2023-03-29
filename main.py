@@ -4,16 +4,18 @@ import json
 import argparse
 import requests
 from functools import partial
+from contextlib import suppress
 from fucker import Fucker
 from logger import logger
 from ObjDict import ObjDict
-from utils import showImage
+from utils import showImage, cookie_jar_to_list
 from utils import getConfigPath, getRealPath, versionCmp
 
 DEFAULT_CONFIG = {
     "username": "",
     "password": "",
     "qrlogin": True,
+    "save_cookies": True,
     "proxies": {},
     "logLevel": "INFO",
     "qr_extra": {
@@ -24,15 +26,17 @@ DEFAULT_CONFIG = {
         "enable": False,
         "token": ""
     },
-    "config_version": "1.1.0"
+    "config_version": "1.2.0"
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
     with open(getConfigPath(), 'r+') as f:
         config = ObjDict(json.load(f), default=None)
-        if "config_version" not in config or versionCmp(config.config_version, DEFAULT_CONFIG["config_version"]) < 0:
+        if "config_version" not in config:
+            config.config_version = "1.0.0"
+        if versionCmp(config.config_version, DEFAULT_CONFIG["config_version"]) < 0:
             new = ObjDict(DEFAULT_CONFIG, default=None)
-            if versionCmp(config.config_version, "1.1.0") < 0:
+            if versionCmp(config.config_version, "1.0.1") < 0:
                 config.pop("qr_extra", None)
             config.pop("config_version", None)
             new.update(config)
@@ -48,25 +52,37 @@ else:
 
 # parse arguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
-parser.add_argument("-c", "--course", type=str, nargs="+", help="CourseId or recruitAndCourseId, can be found in URL")
-parser.add_argument("-v", "--videos", type=str, nargs="+", help="Video IDs(fileId in URL, or, videoId found in API response")
-parser.add_argument("-u", "--username", type=str, help="if not set anywhere, will be prompted")
-parser.add_argument("-p", "--password", type=str, help="If not set anywhere, will be prompted. Be careful, it will be stored in history")
-parser.add_argument("-s", "--speed", type=float, help="Video Play Speed, default value is maximum speed found on site")
-parser.add_argument("-t", "--threshold", type=float, help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
-parser.add_argument("-l", "--limit", type=int, default=0, help="Time Limit (in minutes, 0 for no limit), default is 0")
-parser.add_argument("-q", "--qrlogin", action="store_true", help="Use QR Login")
+parser.add_argument("-c", "--course", type=str, nargs="+",
+                    help="CourseId or recruitAndCourseId, can be found in URL")
+parser.add_argument("-v", "--videos", type=str, nargs="+",
+                    help="Video IDs(fileId in URL, or, videoId found in API response")
+parser.add_argument("-u", "--username", type=str,
+                    help="if not set anywhere, will be prompted")
+parser.add_argument("-p", "--password", type=str,
+                    help="If not set anywhere, will be prompted. Be careful, it will be stored in history")
+parser.add_argument("-s", "--speed", type=float,
+                    help="Video Play Speed, default value is maximum speed found on site")
+parser.add_argument("-t", "--threshold", type=float,
+                    help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
+parser.add_argument("-l", "--limit", type=int, default=0,
+                    help="Time Limit (in minutes, 0 for no limit), default is 0")
+parser.add_argument("-q", "--qrlogin", action="store_true",
+                    help="Use QR Login")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")
-parser.add_argument("-f", "--fetch", action="store_true", help="Fetch new course list")
-parser.add_argument("--show_in_terminal", action="store_true", help="Show QR in terminal")
-parser.add_argument("--proxy", type=str, help="Proxy Config, e.g: http://127.0.0.1:8080")
+parser.add_argument("-f", "--fetch", action="store_true",
+                    help="Fetch new course list")
+parser.add_argument("--show_in_terminal",
+                    action="store_true", help="Show QR in terminal")
+parser.add_argument("--proxy", type=str,
+                    help="Proxy Config, e.g: http://127.0.0.1:8080")
 
 args = parser.parse_args()
 
 course = args.course
 username = args.username or config.username
 password = args.password or config.password
-qrlogin = args.qrlogin or config.qrlogin or True # Force enabled for v2.3.*
+qrlogin = args.qrlogin or config.qrlogin or True  # Force enabled for v2.3.*
+save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
 show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal or False
 ensure_unicode = qr_extra.ensure_unicode or False
@@ -75,14 +91,14 @@ proxies = config.proxies or {}
 push_token = config.push.enable and config.push.token or ""
 
 if logger.getLevel() == "DEBUG":
-    print("*****************************\n"+
-          "DEBUG MODE ENABLED\n"+
-          "SENSITIVE DATA WILL BE LOGGED\n"+
+    print("*****************************\n" +
+          "DEBUG MODE ENABLED\n" +
+          "SENSITIVE DATA WILL BE LOGGED\n" +
           "*****************************\n")
 
-if args.proxy: # parse proxy
+if args.proxy:  # parse proxy
     match args.proxy.lower().split("://"):
-        case ["http"|"https", proxy]:
+        case ["http" | "https", proxy]:
             proxies["http"] = args.proxy
             proxies["https"] = args.proxy
         case ["socks5", proxy]:
@@ -97,50 +113,72 @@ if args.proxy: # parse proxy
 
 # check update
 with open(getRealPath("meta.json"), "r") as f:
-    try: # some exceptions won't be caught by 'with'
+    try:  # some exceptions won't be caught by 'with'
         m = ObjDict(json.load(f))
         url = f"https://raw.githubusercontent.com/{m.author}/fuckZHS/{m.branch}/meta.json"
         r = ObjDict(requests.get(url, proxies=proxies, timeout=5).json())
         current = m.version
         latest = r.version
         if versionCmp(current, latest) < 0:
-            print("*********************************\n"+
-                 f"New version available: {latest}\n"+
-                 f"Current version: {current}\n"+
+            print("*********************************\n" +
+                  f"New version available: {latest}\n" +
+                  f"Current version: {current}\n" +
                   "*********************************\n")
     except Exception:
         print("*Failed to check update\n")
 
-### create an instance, now we are talking... or fucking
+# create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed,
-               end_thre=args.threshold, limit=args.limit, push_token=push_token)
+                end_thre=args.threshold, limit=args.limit, push_token=push_token)
 
-### first you need to login to get cookies
-try:
-    if qrlogin:
-        callback = partial(showImage, show_in_terminal=show_in_terminal, ensure_unicode=ensure_unicode)
-        fucker.login(use_qr=True, qr_callback=callback)
-    else:
-         fucker.login(username, password)
-    print("Login Successful\n")
-except Exception as e:
-    print(e)
-    exit(1)
+cookies_path = getRealPath("./cookies.json")
+cookies_loaded = False
+if save_cookies and os.path.exists(cookies_path):
+    with open(cookies_path, 'r') as f:
+        raw = f.read() or '{}'
+        cookies = json.loads(raw)
+    with suppress(Exception):
+        fucker.cookies = cookies
+        fucker.getZhidaoList()
+        fucker.getHikeList()
+        print("Successfully recovered from saved cookies\n")
+        cookies_loaded = True
+
+
+# first you need to login to get cookies
+if not cookies_loaded:
+    try:
+        if qrlogin:
+            callback = partial(
+                showImage, show_in_terminal=show_in_terminal, ensure_unicode=ensure_unicode)
+            fucker.login(use_qr=True, qr_callback=callback)
+        else:
+            fucker.login(username, password)
+        print("Login Successful\n")
+        if save_cookies:
+            with open(cookies_path, 'w') as f:
+                json.dump(cookie_jar_to_list(fucker.cookies), f,
+                          indent=2, ensure_ascii=False)
+    except Exception as e:
+        print(e)
+        exit(1)
 
 # you can add cookies manually by setting cookies property of a Fucker instance
 # notice that cookies of zhihuishu.com expires if you login again in somewhere else
 # fucker.cookies = {}
 
 exec_list = getRealPath("execution.json")
-### fetch course list
+# fetch course list
 if args.fetch:
     with open(exec_list, "w") as f:
-        zhidao_ids = [{"name": c.courseName, "id": c.secret} for c in fucker.getZhidaoList()]
-        hike_ids = [{"name": c.courseName, "id": str(c.courseId)} for c in fucker.getHikeList()]
+        zhidao_ids = [{"name": c.courseName, "id": c.secret}
+                      for c in fucker.getZhidaoList()]
+        hike_ids = [{"name": c.courseName, "id": str(
+            c.courseId)} for c in fucker.getHikeList()]
         json.dump(zhidao_ids + hike_ids, f, indent=4, ensure_ascii=False)
     exit(0)
 
-### get courses from file if not specified
+# get courses from file if not specified
 if not course and os.path.isfile(exec_list):
     with open(exec_list, "r") as f:
         try:
@@ -154,7 +192,7 @@ if not course:
     fucker.fuckWhatever()
     exit(0)
 
-### auto detect mode
+# auto detect mode
 for c in course.copy():
     if args.videos:
         for v in args.videos:
@@ -173,11 +211,11 @@ for c in course.copy():
             print(f"Error when fucking course {c}:\n{e}")
 if args.videos:
     print(f"*the following videos are not fucked: {args.videos}")
-    
-## use fuckCourse method to fuck the entire course
+
+# use fuckCourse method to fuck the entire course
 # fucker.fuckCourse(course_id="")
 
-## or if you want to fuck a video, use fuckVideo method
+# or if you want to fuck a video, use fuckVideo method
 # fucker.fuckVideo(course_id="", file_id="")
 
 # check the source code or README to find more info

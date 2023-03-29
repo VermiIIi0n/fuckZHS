@@ -3,8 +3,10 @@
 import io
 import os
 import sys
+from requests.cookies import RequestsCookieJar, create_cookie
 from PIL import Image, ImageOps
 from datetime import timedelta
+
 
 def HMS(*args, **kw):
     return str(timedelta(*args, **kw))
@@ -75,14 +77,14 @@ def getRealPath(path: str):
         path = os.path.join(getDir(), path)
     return os.path.realpath(path)
 
-def versionCmp(v1:str, v2:str):
+def versionCmp(v1:str, v2:str) -> int:
     v1 = v1.split('.')
     v2 = v2.split('.')
-    for i in range(min(len(v1), len(v2))):
-        dt = int(v1[i]) - int(v2[i])
+    for i1, i2 in zip(v1, v2):
+        dt = int(i1) - int(i2)
         if dt:
             return dt
-    return 0 if len(v1) == len(v2) else (v1[-1] if len(v1) > len(v2) else -v2[-1])
+    return len(v1) - len(v2)
 
 def wipeLine():
     print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
@@ -108,3 +110,45 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     print(f"\r{prefix}{bar}{suffix}", end = '\r')
     if iteration >= total:
         wipeLine()
+
+# Converting requests.cookies.RequestCookieJar to list
+def cookie_jar_to_list(cookie_jar: RequestsCookieJar):
+    cookies_list = []
+    for cookie in cookie_jar:
+        cookie_dict = {
+            'name': cookie.name,
+            'value': cookie.value,
+            'domain': cookie.domain,
+            'port': cookie.port,
+            'path': cookie.path,
+            'expires': cookie.expires,
+            'secure': cookie.secure,
+            'rest': cookie.__dict__.get('_rest', {}),
+            'version': cookie.version,
+            'comment': cookie.comment,
+            'comment_url': cookie.comment_url,
+            'rfc2109': cookie.rfc2109
+        }
+        cookies_list.append(cookie_dict)
+    return cookies_list
+
+# Converting list to requests.cookies.RequestCookieJar
+def list_to_cookie_jar(cookies_list: list[dict]):
+    cookie_jar = RequestsCookieJar()
+    for cookie_dict in cookies_list:
+        cookie = create_cookie(
+            name=cookie_dict.get('name', ''),
+            value=cookie_dict.get('value', ''),
+            domain=cookie_dict.get('domain', None),
+            port=cookie_dict.get('port', None),
+            path=cookie_dict.get('path', None),
+            expires=cookie_dict.get('expires', None),
+            secure=cookie_dict.get('secure', False),
+            rest=cookie_dict.get('rest', {}),
+            version=cookie_dict.get('version', 0),
+            comment=cookie_dict.get('comment', None),
+            comment_url=cookie_dict.get('comment_url', None),
+            rfc2109=cookie_dict.get('rfc2109', False)
+        )
+        cookie_jar.set_cookie(cookie)
+    return cookie_jar

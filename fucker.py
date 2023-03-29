@@ -1,7 +1,9 @@
 from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY
+from utils import progressBar, HMS, wipeLine, list_to_cookie_jar
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
-from utils import progressBar, HMS, wipeLine
+from requests.cookies import RequestsCookieJar
+from requests.utils import cookiejar_from_dict
 from base64 import b64encode, b64decode
 from random import randint, random
 from datetime import datetime
@@ -97,13 +99,17 @@ class Fucker:
         self._push = partial(pusher, token=push_token) if push_token else lambda *args, **kwargs: None
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
-    def cookies(self):
+    def cookies(self) -> RequestsCookieJar:
         return self._cookies
 
     @cookies.setter
-    def cookies(self, cookies: dict|requests.cookies.RequestsCookieJar):
-        self._cookies = cookies if isinstance(cookies, requests.cookies.RequestsCookieJar)\
-                                else requests.utils.cookiejar_from_dict(cookies)
+    def cookies(self, cookies: dict | list | RequestsCookieJar):
+        if isinstance(cookies, dict):
+            cookies = cookiejar_from_dict(cookies)
+        elif isinstance(cookies, list):
+            cookies = list_to_cookie_jar(cookies)
+        
+        self._cookies = cookies
         logger.debug(f'received cookies: {self.cookies}')
         if cookies:
             try:
