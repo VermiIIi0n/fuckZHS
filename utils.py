@@ -87,7 +87,11 @@ def versionCmp(v1:str, v2:str) -> int:
     return len(v1) - len(v2)
 
 def wipeLine():
-    print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
+    try:
+        width = os.get_terminal_size().columns
+    except OSError:  # Fix for PyCharm in Windows
+        width = 80
+    print('\r' + ' ' * (width), end = '\r', flush=True)
 
 def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
                       length = (os.get_terminal_size().columns-4), fill = '#'):
@@ -127,7 +131,8 @@ def cookie_jar_to_list(cookie_jar: RequestsCookieJar):
             'version': cookie.version,
             'comment': cookie.comment,
             'comment_url': cookie.comment_url,
-            'rfc2109': cookie.rfc2109
+            'rfc2109': cookie.rfc2109,
+            'discard': cookie.discard,
         }
         cookies_list.append(cookie_dict)
     return cookies_list
@@ -137,18 +142,19 @@ def list_to_cookie_jar(cookies_list: list[dict]):
     cookie_jar = RequestsCookieJar()
     for cookie_dict in cookies_list:
         cookie = create_cookie(
-            name=cookie_dict.get('name', ''),
-            value=cookie_dict.get('value', ''),
-            domain=cookie_dict.get('domain', None),
+            name=cookie_dict['name'],
+            value=cookie_dict['value'],
+            domain=cookie_dict.get('domain', ''),
             port=cookie_dict.get('port', None),
-            path=cookie_dict.get('path', None),
+            path=cookie_dict.get('path', '/'),
             expires=cookie_dict.get('expires', None),
             secure=cookie_dict.get('secure', False),
-            rest=cookie_dict.get('rest', {}),
+            rest=cookie_dict.get('rest', {'HttpOnly': None}),
             version=cookie_dict.get('version', 0),
             comment=cookie_dict.get('comment', None),
             comment_url=cookie_dict.get('comment_url', None),
-            rfc2109=cookie_dict.get('rfc2109', False)
+            rfc2109=cookie_dict.get('rfc2109', False),
+            discard=cookie_dict.get('discard', True),
         )
         cookie_jar.set_cookie(cookie)
     return cookie_jar
