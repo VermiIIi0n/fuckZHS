@@ -3,6 +3,7 @@ import re
 import json
 import argparse
 import requests
+import platform
 from functools import partial
 from contextlib import suppress
 from fucker import Fucker
@@ -19,7 +20,7 @@ DEFAULT_CONFIG = {
     "proxies": {},
     "logLevel": "INFO",
     "qr_extra": {
-        "show_in_terminal": True,
+        "show_in_terminal": None,
         "ensure_unicode": False
     },
     "push": {
@@ -84,7 +85,10 @@ password = args.password or config.password
 qrlogin = args.qrlogin or config.qrlogin or True  # Force enabled for v2.3.*
 save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
-show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal or False
+show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal
+if show_in_terminal is None:
+    # Defaults to terminal in Windows
+    show_in_terminal = platform.system() == "Windows"
 ensure_unicode = qr_extra.ensure_unicode or False
 logger.setLevel("DEBUG" if args.debug else (config.logLevel or "WARNING"))
 proxies = config.proxies or {}

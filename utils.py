@@ -87,7 +87,11 @@ def versionCmp(v1:str, v2:str) -> int:
     return len(v1) - len(v2)
 
 def wipeLine():
-    print('\r' + ' ' * (os.get_terminal_size().columns), end = '\r')
+    try:
+        width = os.get_terminal_size().columns
+    except OSError:  # Fix for PyCharm in Windows
+        width = 80
+    print('\r' + ' ' * (width), end = '\r', flush=True)
 
 def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
                       length = (os.get_terminal_size().columns-4), fill = '#'):
