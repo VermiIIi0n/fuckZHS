@@ -16,7 +16,7 @@ DEFAULT_CONFIG = {
     "username": "",
     "password": "",
     "qrlogin": True,
-    "save_cookies": True,
+    "save_cookies": False,
     "proxies": {},
     "logLevel": "INFO",
     "qr_extra": {
@@ -143,8 +143,12 @@ if save_cookies and os.path.exists(cookies_path):
         cookies = json.loads(raw)
     with suppress(Exception):
         fucker.cookies = cookies
-        fucker.getZhidaoList()
-        fucker.getHikeList()
+        ls = fucker.getZhidaoList()
+        if ls:
+            fucker.getZhidaoContext(ls[-1].secret)
+        ls = fucker.getHikeList()
+        if ls:
+            fucker.getHikeContext(ls[-1].courseId)
         print("Successfully recovered from saved cookies\n")
         cookies_loaded = True
 
