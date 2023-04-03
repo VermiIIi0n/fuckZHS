@@ -12,7 +12,8 @@ from threading import Thread
 from getpass import getpass
 from ObjDict import ObjDict
 from logger import logger
-from push import pusher
+from push import pushpluser
+from push import barkpusher
 from sign import sign
 import urllib.request
 import websockets
@@ -55,7 +56,8 @@ class Fucker:
                  limit: int = 0,
                  speed: float = None,
                  end_thre: float = None,
-                 push_token: str = '',):
+                 pushplus_token: str = '',
+                 bark_token: str = ''):
         """
         ### Fucker Class
         * `cookies`: dict, optional, cookies to use for the session
@@ -96,7 +98,8 @@ class Fucker:
         self.prefix = "  |"                        # prefix for tree view
         self.context = ObjDict(default=None)       # context for methods
         self.courses = ObjDict(default=None)       # store courses info
-        self._push = partial(pusher, token=push_token) if push_token else lambda *args, **kwargs: None
+        self._pushplus = partial(pushpluser, token=pushplus_token) if pushplus_token else lambda *args, **kwargs: None
+        self._bark = partial(barkpusher, token=bark_token) if bark_token else lambda *args, **kwargs: None
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self) -> RequestsCookieJar:
@@ -386,19 +389,22 @@ class Fucker:
                             self.fuckZhidaoVideo(RAC_id, video.videoId)
                         except TimeLimitExceeded as e:
                             logger.info(f"Fucking time limit exceeded: {e}")
-                            self._push("fuckZHS","刷课已完成")
+                            self._pushplus("fuckZHS","刷课已完成")
+                            self._bark("fuckZHS","刷课已完成")
                             tprint(prefix)
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
                         except CaptchaException:
                             logger.info("Captcha required")
-                            self._push("fuckZHS","需要提供验证码")
+                            self._pushplus("fuckZHS","需要提供验证码")
+                            self._bark("fuckZHS","需要提供验证码")
                             tprint(prefix)
                             tprint(f"{prefix}##Captcha required\a\n")
                             return
                         except Exception as e:
                             logger.exception(e)
-                            self._push("fuckZHS",e)
+                            self._pushplus("fuckZHS",e)
+                            self._bark("fuckZHS",e)
                             tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
         except KeyboardInterrupt:
             logger.info("User interrupted")
