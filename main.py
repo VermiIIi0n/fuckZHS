@@ -16,7 +16,7 @@ DEFAULT_CONFIG = {
     "username": "",
     "password": "",
     "qrlogin": True,
-    "save_cookies": False,
+    "save_cookies": True,
     "proxies": {},
     "logLevel": "INFO",
     "qr_extra": {
@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
         "enable": False,
         "token": "https://example.com/xxxxxxxxx"
     },
-    "config_version": "1.2.0"
+    "config_version": "1.3.0"
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
@@ -43,6 +43,9 @@ if os.path.isfile(getConfigPath()):
             new = ObjDict(DEFAULT_CONFIG, default=None)
             if versionCmp(config.config_version, "1.0.1") < 0:
                 config.pop("qr_extra", None)
+            if versionCmp(config.config_version, "1.3.0") < 0:
+                pushplus = config.pop("push", {})
+                new.pushplus.update(pushplus)
             config.pop("config_version", None)
             new.update(config)
             config = new
