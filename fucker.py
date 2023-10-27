@@ -16,9 +16,7 @@ from push import pushpluser
 from push import barkpusher
 from sign import sign
 import urllib.request
-import websockets
 import requests
-import asyncio
 import math
 import time
 import json
@@ -186,44 +184,94 @@ class Fucker:
         """Login using qr code"""
         login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
         qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
+        query_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrInfo"
         self._sessionReady()
-        async def wait(url):
-            async with websockets.connect(url, extra_headers=self.headers) as websocket:
-                while True:
-                    msg = await websocket.recv()
-                    msg = ObjDict(json.loads(msg), default=None)
-                    logger.debug(f"QR login received {msg}")
-                    match msg.code:
-                        case 0:
-                            logger.info(f"QR Scanned: {msg.msg}")
-                            print("QR Scanned")
-                        case 1:
-                            logger.info(f"One-time code get: {msg.msg}")
-                            print("One-time code received")
-                            self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
-                            self.cookies = self.session.cookies.copy()
-                            if not self.cookies:
-                                raise Exception("No cookies found")
-                            logger.info("Login successful")
-                            break
-                        case 2:
-                            print("QR code expired")
-                            raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
-                        case 3:
-                            raise Exception(f"Login canceled")
-                        case _:
-                            raise Exception(f"Unknown Response {msg.msg}")
         try:
             r = self.session.get(qr_page, timeout=10).json()
             qrToken = r["qrToken"]
             img = b64decode(r["img"])
             qr_callback(img)
-            asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
+            logger.debug(f"QR login received, token{qrToken}")
+            while True:
+                time.sleep(0.5)
+                msg = ObjDict(
+                    self.session.get(query_page, params={"qrToken":qrToken}, timeout=10).json(),
+                    default=None)
+                scanned = False
+                match msg.status:
+                    case -1:
+                        pass # not scanned
+                    case 0:
+                        if not scanned:
+                            scanned = True
+                            logger.info(f"QR Scanned: {msg.msg}")
+                            print("QR Scanned")
+                    case 1:
+                        logger.info(f"One-time code get: {msg.msg}")
+                        print("One-time code received")
+                        self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
+                        self.cookies = self.session.cookies.copy()
+                        if not self.cookies:
+                            raise Exception("No cookies found")
+                        logger.info("Login successful")
+                        break
+                    case 2:
+                        print("QR code expired")
+                        raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
+                    case 3:
+                        raise Exception(f"Login canceled")
+                    case _:
+                        raise Exception(f"Unknown Response {msg.msg}")
+
         except TimeLimitExceeded:
             self._qrlogin(qr_callback) # timeout? try again!
         except Exception as e:
             logger.exception(e)
             raise Exception(f"QR login failed: {e}")
+
+#    def _qrlogin(self, qr_callback):
+#        """Login using qr code"""
+#        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
+#        qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
+#        self._sessionReady()
+#        async def wait(url):
+#            async with websockets.connect(url, extra_headers=self.headers) as websocket:
+#                while True:
+#                    msg = await websocket.recv()
+#                    msg = ObjDict(json.loads(msg), default=None)
+#                    logger.debug(f"QR login received {msg}")
+#                    match msg.code:
+#                        case 0:
+#                            logger.info(f"QR Scanned: {msg.msg}")
+#                            print("QR Scanned")
+#                        case 1:
+#                            logger.info(f"One-time code get: {msg.msg}")
+#                            print("One-time code received")
+#                            self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
+#                            self.cookies = self.session.cookies.copy()
+#                            if not self.cookies:
+#                                raise Exception("No cookies found")
+#                            logger.info("Login successful")
+#                            break
+#                        case 2:
+#                            print("QR code expired")
+#                            raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
+#                        case 3:
+#                            raise Exception(f"Login canceled")
+#                        case _:
+#                            raise Exception(f"Unknown Response {msg.msg}")
+#        try:
+#            r = self.session.get(qr_page, timeout=10).json()
+#            qrToken = r["qrToken"]
+#            img = b64decode(r["img"])
+#            qr_callback(img)
+#            logger.debug("Start QR login WebSocket")
+#            asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
+#        except TimeLimitExceeded:
+#            self._qrlogin(qr_callback) # timeout? try again!
+#        except Exception as e:
+#            logger.exception(e)
+#            raise Exception(f"QR login failed: {e}")
 
     def fuckWhatever(self):
         """Fuck whatever is found"""
