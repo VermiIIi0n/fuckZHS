@@ -92,7 +92,7 @@ class Fucker:
 
         self.limit = abs(limit)                    # time limit for fucking, in minutes
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
-        self.end_thre = min(end_thre or 0.91, 1.0) # video play end threshold, above this will be considered as finished
+        self.end_thre = max(end_thre, 0.0) or 0.91 # video play end threshold, above this will be considered as finished
         self.prefix = "  |"                        # prefix for tree view
         self.context = ObjDict(default=None)       # context for methods
         self.courses = ObjDict(default=None)       # store courses info
@@ -474,7 +474,7 @@ class Fucker:
         watch_state = video.watchState
         if not video:
             raise ValueError(f"Video {video_id} not found")
-        if watch_state == 1:
+        if watch_state == 1 and self.end_thre <= 1.0:  # check end_thre in case someone wants to rewatch
             logger.info(f"Video {video.name} already watched")
             return
         # get token id from pre learning note
@@ -490,7 +490,7 @@ class Fucker:
             questions.pop() # remove questions that are already answered
 
         # compute end time and make sure to answer all questions
-        end_time = video.videoSec * self.end_thre
+        end_time = max(video.videoSec * self.end_thre, 1.0)
         if questions:
             end_time = max(questions[0].timeSec, end_time) # compare last question time with end_time
 
@@ -891,20 +891,20 @@ class Fucker:
         start_date = int(time.time()*1000)
         speed = self.speed or 1.25 # default speed for Hike is 1.25
         interval = 30              # interval between 2 progess reports
-        end_time = total_time*self.end_thre
+        end_time = max(total_time*self.end_thre, 1.0)
         played_time = prev_time    # total video played time
         # start main loop
         while played_time <= end_time:
             time.sleep(1)
             ctx.fucked_time += 1
-            played_time = min(played_time+speed, total_time)
+            played_time = min(played_time+speed, end_time)
             # enter branch when video is finished or interval is reached
             if played_time >= end_time or \
                 not (int(played_time-prev_time) % interval):
                 ret_time = self.saveStuStudyRecord(course_id,file_id,played_time,prev_time,start_date) # report progress
                 prev_time, played_time = ret_time, ret_time
             progressBar(played_time, end_time,
-                        prefix=f"fucking {file_id}", suffix="of threshold")
+                        prefix=f"fucking {file_id}", suffix="done")
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
         time.sleep(random()+1) # more human-like
 

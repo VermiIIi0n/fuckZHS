@@ -94,7 +94,7 @@ def wipeLine():
     print('\r' + ' ' * (width), end = '\r', flush=True)
 
 def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
-                      length = (os.get_terminal_size().columns-4), fill = '#'):
+                      length = None, fill = '#'):
     """
     ### Call in a loop to create terminal progress bar
     * `iteration`   - Required  : current iteration (Int)
@@ -105,6 +105,11 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     * `length`      - Optional  : character length of bar (Int)
     * `fill`        - Optional  : bar fill character (Str)
     """
+    if not length:
+        try:
+            length = os.get_terminal_size().columns - 4
+        except OSError:  # Fix for PyCharm in Windows
+            length = 76
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     prefix = f"{prefix} |"
     suffix = f"| {percent}% {suffix}"

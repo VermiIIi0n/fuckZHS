@@ -45,7 +45,7 @@ class WatchPoint:
             self.wp.append(self.gen(i))
 
     def get(self):
-        return ','.join(list(map(str,self.wp)))
+        return ','.join(map(str,self.wp))
 
     def reset(self, init:int=0):
         self.wp = [0,1]

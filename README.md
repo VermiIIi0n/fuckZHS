@@ -6,7 +6,7 @@
 
 本脚本是为人节约生命的, 不是增加负担的, 况且屎山代码我也不好意思卖, 倒卖就算了别说是我授权的, 丢不起这个脸![dragon](./images/dragon.jpg)
 
-愿意支持的朋友点个☆就好, 叔叔我承诺本~~屎山~~脚本可能会下架, 但永不会变质.
+愿意支持的朋友点个 ☆ 就好, 叔叔我承诺本~~屎山~~脚本可能会下架, 但永不会变质.
 
 ## WTF?
 
@@ -14,36 +14,37 @@
 
 ### Features
 
-* 支持校内学分课与知到共享学分课
-* 自动回答弹题
-* 设定时限
-* 射后不管, 无需交互
+- 支持校内学分课与知到共享学分课
+- 自动回答弹题
+- 设定时限
+- 射后不管, 无需交互
 
-***
+---
 
 ## WHY?
 
 自从智慧树的校内学分课(i.e. hike)播放页面用了个窒息的 _JavaScript_ 混淆之后, 大部分前端的脚本都没法用了.  
 因为它会检查 _DevTools_ 是否打开, 如果打开了就无法继续运行, 要分析的话由于混淆, 解读很麻烦.  
-于是我打算直接抄家, 入它后端(*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)  
-***
+于是我打算直接抄家, 入它后端(\*), 之后便有了该脚本. (虽然最后还是被逼着反混淆了前端代码...)
+
+---
 
 ## 实用链接
 
-* [版本更新注意事项](https://github.com/VermiIIi0n/fuckZHS/discussions/24)
-* [常见问题](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
-* [讨论区](https://github.com/VermiIIi0n/fuckZHS/discussions)
+- [版本更新注意事项](https://github.com/VermiIIi0n/fuckZHS/discussions/24)
+- [常见问题](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
+- [讨论区](https://github.com/VermiIIi0n/fuckZHS/discussions)
 
-***
+---
 
 ## 准备工作
 
 您还需要做以下准备:
 
-* _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
-* 执行 `pip install -r requirements.txt` 安装依赖
+- _Python3.10_ 及以上版本(或自行改写旧版不兼容的语法)
+- 执行 `pip install -r requirements.txt` 安装依赖
 
-***
+---
 
 ## 如何使用
 
@@ -52,25 +53,28 @@
 本块分为
 
 0. Ultra Quick Start: 执行 `python main.py`
-   * 仅以交互输入信息, 除非开 DEBUG 模式否则不留任何敏感记录
+
+   - 仅以交互输入信息, 除非开 DEBUG 模式否则不留任何敏感记录
 
 1. `Login`: 输入账号与密码
-   * 使用配置文件
-   * 使用命令行参数
+
+   - 使用配置文件
+   - 使用命令行参数
 
 2. `Fxxking`: 开干
-   * 使用命令行参数
-   * 拉清单
-   * 参数列表
+
+   - 使用命令行参数
+   - 拉清单
+   - 参数列表
 
 3. `API` 简易文档: 用于单独使用模块
 
 ### Login
 
-  _*如果非常用地登入会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单._  
-  _**信息优先级: 命令行 > 配置文件 > 交互输入_  
+_\*如果非常用地登入会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单._  
+ _\*\*信息优先级: 命令行 > 配置文件 > 交互输入_
 
-### 使用配置文件  
+### 使用配置文件
 
 配置文件 _config.json_ 中有以下字段:
 
@@ -92,23 +96,23 @@
 }
 ```
 
-* `username`: 账号
-* `password`: 密码
-* `qrlogin`: 启用二维码登陆, 方便在服务器上部署, 优先级高于账号密码
-* `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
-* `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`
-* `qr_extra`: QR 相关配置
-  * `show_in_terminal`: 将二维码打印至终端
-  * `ensure_unicode`: 仅使用 Unicode 字符打印二维码
-* `pushplus`: 基于 [pushplus](https://www.pushplus.plus) 的推送服务
-  * `enable`: 启用推送
-  * `token`: 推送 token
-* `bark`: 基于 [bark](https://github.com/Finb/Bark) 的推送服务
-  * `enable`: 启用推送
-  * `token`: 推送 token，例如：`https://api.day.app/xxxxxxxxxxxxx`
+- `username`: 账号
+- `password`: 密码
+- `qrlogin`: 启用二维码登陆, 方便在服务器上部署, 优先级高于账号密码
+- `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
+- `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`
+- `qr_extra`: QR 相关配置
+  - `show_in_terminal`: 将二维码打印至终端
+  - `ensure_unicode`: 仅使用 Unicode 字符打印二维码
+- `pushplus`: 基于 [pushplus](https://www.pushplus.plus) 的推送服务
+  - `enable`: 启用推送
+  - `token`: 推送 token
+- `bark`: 基于 [bark](https://github.com/Finb/Bark) 的推送服务
+  - `enable`: 启用推送
+  - `token`: 推送 token，例如：`https://api.day.app/xxxxxxxxxxxxx`
 
 ~填入账号密码即可无干预自动登入~ 当前失效  
- _*配置文件如果没有的话会在 main.py 执行时自动创建._
+ _\*配置文件如果没有的话会在 main.py 执行时自动创建._
 
 ### 使用命令行参数登入
 
@@ -117,18 +121,18 @@ python main.py -u <username> -p <password>
 python main.py -q
 ```
 
-* `-u` `--username`: 账号
-* `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p` _*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_  
-* `-q` `--qrlogin` : 启用二维码登陆  
+- `-u` `--username`: 账号
+- `-p` `--password`: 密码, 要注意密码将会明文留在记录中, 故不推荐使用 `-p` _\*虽然说这破站密码泄漏就泄露吧, 写配置文件里多方便, 俗话说晚泄不如早泄(¿)_
+- `-q` `--qrlogin` : 启用二维码登陆
 
-***
+---
 
 ### Fxxking
 
-### 命令行指北  
+### 命令行指北
 
 **以下假设您已经在配置文件中输入必要信息**  
-  _*信息优先级: 命令行 > 配置文件 > 交互输入_  
+ _\*信息优先级: 命令行 > 配置文件 > 交互输入_
 
 ```bash
 cd fuckZHS
@@ -146,15 +150,15 @@ python main.py -c 114514 -v 1989 604
 ```
 
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
-  _*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数_  
-  _**更多选项请使用 `-h` 查看._  
+ _\*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数_  
+ _\*\*更多选项请使用 `-h` 查看._
 
 ### 拉清单
 
 使用 `--fetch` 参数可从服务器获得所有课程清单, 存储到 _execution.json_ 这个小本本里, 您可以删去不想干的课程  
 当该文件存在且没有指定课程 ID 时, 会先看看这个小本本上有没有写着课程 ID  
-_*清单中 `id` 参数是必须的, 想额外拉清单时请注意_  
-_**修改时请注意 JSON 语法, 不然 Exceptions 会一下突开到脸上_
+_\*清单中 `id` 参数是必须的, 想额外拉清单时请注意_  
+_\*\*修改时请注意 JSON 语法, 不然 Exceptions 会一下突开到脸上_
 
 ```bash
 python main.py --fetch
@@ -177,31 +181,32 @@ python main.py --fetch
 
 ### 命令行参数列表
 
-* `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
-* `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
-* `-u`, `--username`: 账号
-* `-p`, `--password`: 密码
-* `-q`, `--qrlogin`:
-* `-s`, `--speed`: ~~**POWERR AND SPEEEEED!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
-* `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成
-* `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
-* `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 **_(可能包含账号密码, 别乱分享, 当心被盒武_**
-* `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
-* `--show_in_terminal`: 将二维码打印至终端
-* `--proxy`: 代理设置, 本来用来调试的(e.g. <http://127.0.0.1:8080>)
-* `-h` `--help`: 显示帮助
+- `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
+- `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
+- `-u`, `--username`: 账号
+- `-p`, `--password`: 密码
+- `-q`, `--qrlogin`:
+- `-s`, `--speed`: ~~**POWERR AND SPEEEEED!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
+- `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成, 想要重复刷课可以使用大于 `1.0` 的值, 例如 `2.0` 则会再刷一遍
+- `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
+- `-d`, `--debug`: 调试级日志记录, 会记录请求到日志 **_(可能包含账号密码, 别乱分享, 当心被盒武_**
+- `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
+- `--show_in_terminal`: 将二维码打印至终端
+- `--proxy`: 代理设置, 本来用来调试的(e.g. <http://127.0.0.1:8080>)
+- `-h` `--help`: 显示帮助
 
 运行示例如下:
-![运行示例](./images/running.png)  
+![运行示例](./images/running.png)
 
 指北就这些啦, ~~代码很少可以自己看~~ 现在不少了().
-***
+
+---
 
 ### `API` 简介
 
 详见源码
 
-#### 实例化 `Fucker`  
+#### 实例化 `Fucker`
 
 ```Python
 from fucker import Fucker
@@ -230,7 +235,7 @@ fucker.cookies = {key: "Angel Beats!", "inside Uncle's eyes": value}
 # 该 cookies 会覆盖原有值, 同时请确保它是完整的智慧树 cookies，因为 uuid 需要从 cookies 中解析
 ```
 
-### `fuckCourse` Methods Family  
+### `fuckCourse` Methods Family
 
 ```Python
 fucker.fuckCourse(course_id:str) # 把整个课程都干了
@@ -254,8 +259,8 @@ fucker.getZhidaoContext(recruitAndCourseId)
 fucker.getHikeContext(courseId)
 fucker.getHikeContext(courseId, force=True) # 强制更新context并重置课程学习时间(本地记录)
 '''
-自动在 `fuck*Course` `fuck*Video` 中被调用  
-返回一个 `dict`, 内含该 ID 对应课程的必要信息以及实例运行后学习该课的总时间, 必要信息没有的话会向服务器请求 
+自动在 `fuck*Course` `fuck*Video` 中被调用
+返回一个 `dict`, 内含该 ID 对应课程的必要信息以及实例运行后学习该课的总时间, 必要信息没有的话会向服务器请求
 该 `dict` 结构请见源码
 '''
 ```
@@ -291,24 +296,24 @@ def saveDatabaseIntervalTime(self, RAC_id, video_id, played_time, last_submit, w
 def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None)
 ```
 
-***
+---
 
 ## 结构介绍
 
 ### 文件结构
 
-* main.py: 命令行主函数
-* sign.py: 负责生成 hike API 所需的 `signature` 参数
-* utils.py: 一些常用工具
-* logger.py: 日志工具, 将不同等级的日志写入不同文件
-* fucker.py: `Fucker` 类定义, 所有核心代码全塞一起了, 莫在意
-* ObjDict.py: `ObjDict` 类定义, 继承自 `dict`, 可以 `object` 属性形式访问 `dict`
-* zd_utils.py: 知到 API 所需的工具, 如生成 `ev` 和 `secretStr`  
-* config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
-* meta.json: 包含版本和分支等信息, 也用于更新检查
-* decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
+- main.py: 命令行主函数
+- sign.py: 负责生成 hike API 所需的 `signature` 参数
+- utils.py: 一些常用工具
+- logger.py: 日志工具, 将不同等级的日志写入不同文件
+- fucker.py: `Fucker` 类定义, 所有核心代码全塞一起了, 莫在意
+- ObjDict.py: `ObjDict` 类定义, 继承自 `dict`, 可以 `object` 属性形式访问 `dict`
+- zd_utils.py: 知到 API 所需的工具, 如生成 `ev` 和 `secretStr`
+- config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
+- meta.json: 包含版本和分支等信息, 也用于更新检查
+- decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包
 
-### Fucker Class Structure  
+### Fucker Class Structure
 
 ```Python
 class Fucker:
@@ -333,7 +338,7 @@ class Fucker:
 # so we need to use different methods for different API
 #############################################
 # following are methods for studyservice-api.zhihuishu.com API
-    def getZhidaoContext(self, RAC_id:str, force:bool=False)... 
+    def getZhidaoContext(self, RAC_id:str, force:bool=False)...
     def fuckZhidaoCourse(self, RAC_id:str, tree_view:bool=True)...
     def fuckZhidaoVideo(self, RAC_id, video_id)...
     def answerZhidao(self, q:dict)...
@@ -360,7 +365,8 @@ class Fucker:
 ```
 
 我的很大, 你忍一下(指类定义)
-***
+
+---
 
 ## 后记
 
@@ -369,7 +375,7 @@ class Fucker:
 
 **_以下内容仅针对校内学分课的 `API` ("hike" 开头的域名)_**
 
-### chapter 0: Too Young Too Naive
+### Chapter 0: Too Young Too Naive
 
 本以为从后端入手会很轻松, 目前绝大部分的脚本是在前端实现刷智慧树自动化(有例外但那些都不是对付校内学分课的), 这样做不仅鲁棒性很差而且过于复杂, 本脚本则直接绕后, 甩开前端, 可以做到不变应万变...吧?
 
@@ -382,7 +388,7 @@ class Fucker:
 紧接着一看源码:
 
 ![WTF](./images/wtf.png)
-_好家伙《乱码1/2》_
+_好家伙《乱码 1/2》_
 
 不过这也没什么, 我本来就只是想抓个包, 用别的工具就是了.
 
@@ -392,8 +398,8 @@ _好家伙《乱码1/2》_
 
 `Params`:
 ![params](./images/params.png)
-_*敏感信息被替换了_  
-您看看这些人多不专业, 拿 `GET` 干 `POST` 的活, 而且那个 `uuid` 根本就不是真的 UUID, 七八个随机字符而已.  
+_\*敏感信息被替换了_  
+您看看这些人多不专业, 拿 `GET` 干 `POST` 的活, 而且那个 `uuid` 根本就不是真的 UUID, 七八个随机字符而已.
 
 #### 模拟请求
 
@@ -412,7 +418,7 @@ _*敏感信息被替换了_
 
 包里大部分参数都很直接, 我们照搬便是.  
 `courseId` 我们可以从浏览器链接里得知,  
-`fileId` 每个章节的都不一样, 可以从“<https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree>” 中获取的JSON 中得到, 源码里有, 不再赘述.
+`fileId` 每个章节的都不一样, 可以从“<https://studyresources.zhihuishu.com/studyResources/stuResouce/queryResourceMenuTree>” 中获取的 JSON 中得到, 源码里有, 不再赘述.
 
 剩下只有 `signature` 不明, 不过大概是个防止多次提交的随机字符串罢了, 毕竟这群人取名似乎一直不太准确.
 
@@ -433,9 +439,10 @@ _*敏感信息被替换了_
 想要自己生成这个 `MD5` 签名就只能从前端代码里找 salt 等数据.
 
 没办法, 开始人生第一次反混淆 _JavaScript_ 吧...
-***
 
-### chapter 1: At Beginning, It's Just Chaos
+---
+
+### Chapter 1: At Beginning, It's Just Chaos
 
 下图开头这个站点名就是万恶之源了, 话说为什么叫“加密”, 只是混淆而已, 和加密相差太远了, 只能说连名字都取的很 Obfuscated.
 
@@ -480,12 +487,12 @@ def decrypt(index:str, key:str):
 ```
 
 _JavaScript_ 原版其实在 Base64 解码后, 还有个手动把内容 URLEncode 了, 又调用 `decodeURIComponent` 解码的诡异操作.  
-一开始我把它删了, 结果竟然生成内容不一样. 似乎是 _JavaScript_ 的 `atob` 似乎会保留非法的内容? 经过看似无意义的 URL Encode&Decode 会把这些字符丢弃掉, 只能说混淆者真是钻研了折磨人的极致了, 好在 _Python_ 的 `b64decode` 默认丢弃这些内容. _*此部分存疑, 不确定原因是不是这个_
+一开始我把它删了, 结果竟然生成内容不一样. 似乎是 _JavaScript_ 的 `atob` 似乎会保留非法的内容? 经过看似无意义的 URL Encode&Decode 会把这些字符丢弃掉, 只能说混淆者真是钻研了折磨人的极致了, 好在 _Python_ 的 `b64decode` 默认丢弃这些内容. _\*此部分存疑, 不确定原因是不是这个_
 
 接下来尝试对列表内容解密, 发现还是乱码...
 
 没办法, 只得继续化简开头的函数, 看看会有什么线索.  
-接着发现程式开头有一段循环, 把列表开头和结尾的俩无意义的东西扔了, 顺带把这个列表旋转了138位, 用 _Python_ 表示就是 `deque.rotate(-138)`  
+接着发现程式开头有一段循环, 把列表开头和结尾的俩无意义的东西扔了, 顺带把这个列表旋转了 138 位, 用 _Python_ 表示就是 `deque.rotate(-138)`  
 这个值是好像是固定的, 但保不准以后会变
 
 #### 解读解密后代码
@@ -511,20 +518,20 @@ var Wtf = {
 if (Wtf.oPhT(Wtf.RvuT,Wtf.stEbU,Wtf.RlVDj){
     console.log("WTF");
     }
-    
+
 //以上这一大坨， 也就等价于
 if (false){
   console.log("who cares what I've logged");
   }
-  
+
 //也就等价于
 //do fucking nothing but consuming your CPU, storage, network bandwidth and god damn time
-  
+
 ```
 
-***
+---
 
-### chapter 2: Let There = Light
+### Chapter 2: Let There = Light
 
 总算看见曙光了, 但要继续解读的话, 这些乱码的函数名字太难读了, 以功能来重新命名吧, 顺便去掉无用的, 重复的部分:
 
@@ -556,9 +563,10 @@ function jobany(params) {
 
 **盐**(bushi):
 ![Shio](./images/Shiochan.webp)
-***
 
-### chapter 3: small step, Giant Leap
+---
+
+### Chapter 3: small step, Giant Leap
 
 为了个区区 `signature` 废了好大功夫  
 不过有了这个我们可以自己签名了, 没想到人都这么大了还靠在自己作业上签名来骗人
@@ -579,8 +587,10 @@ def sign(p:dict):
 我们也算是**努力**的**靠自己**完成作业了
 
 ![1000%](./images/1000.png)  
-~~_已经1000%了()_~~  
-***
+~~_已经 1000%了()_~~
+
+---
+
 给把如此凌乱的内容看到最后您一些安慰吧  
 祝您学习像 Anya 一样好, 料理如 Yor 一般出色!
 ![bonus](./images/bonus.jpg)
