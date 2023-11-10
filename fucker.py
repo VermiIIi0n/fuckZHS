@@ -92,7 +92,7 @@ class Fucker:
 
         self.limit = abs(limit)                    # time limit for fucking, in minutes
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
-        self.end_thre = max(end_thre, 0.0) or 0.91 # video play end threshold, above this will be considered as finished
+        self.end_thre = max(end_thre or 0, 0.0) or 0.91 # video play end threshold, above this will be considered as finished
         self.prefix = "  |"                        # prefix for tree view
         self.context = ObjDict(default=None)       # context for methods
         self.courses = ObjDict(default=None)       # store courses info
