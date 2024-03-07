@@ -2,11 +2,18 @@
 
 ## NEWS
 
+我总觉得有一天这个脚本会被 `404` ，没想到以这种形式实现了，感谢各位对鸽鸽的支持。
+<img style="width: 100px;" src="https://github.com/VermiIIi0n/fuckZHS/assets/104612478/7a285df5-7ffb-4272-b26a-cfa4f079d506">
+
+---
+
 在 TG 上出现了倒卖开源代码的家伙, 其谎称有我的授权. [详见此处](https://github.com/VermiIIi0n/fuckZHS/discussions/19#discussioncomment-4168410).
 
 本脚本是为人节约生命的, 不是增加负担的, 况且屎山代码我也不好意思卖, 倒卖就算了别说是我授权的, 丢不起这个脸![dragon](./images/dragon.jpg)
 
 愿意支持的朋友点个 ☆ 就好, 叔叔我承诺本~~屎山~~脚本可能会下架, 但永不会变质.
+
+---
 
 ## WTF?
 
