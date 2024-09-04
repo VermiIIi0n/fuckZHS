@@ -56,7 +56,8 @@ class Fucker:
                  end_thre: float = None,
                  pushplus_token: str = '',
                  bark_token: str = '',
-                 tree_view:bool = True):
+                 tree_view:bool = True,
+                 image_path:str = ""):
         """
         ### Fucker Class
         * `cookies`: dict, optional, cookies to use for the session
@@ -101,6 +102,7 @@ class Fucker:
         self._pushplus = partial(pushpluser, token=pushplus_token) if pushplus_token else lambda *args, **kwargs: None
         self._bark = partial(barkpusher, token=bark_token) if bark_token else lambda *args, **kwargs: None
         self.tree_view = tree_view
+        self.image_path = image_path
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self) -> RequestsCookieJar:
@@ -193,6 +195,11 @@ class Fucker:
             r = self.session.get(qr_page, timeout=10).json()
             qrToken = r["qrToken"]
             img = b64decode(r["img"])
+            if self.image_path != "": # 路径非空时保存图片到指定路径
+                image_path = f"{os.path.join(self.image_path, time.strftime('%Y-%m-%dT%H-%M-%S'))}.png"
+                with open(image_path, "wb") as f:
+                    f.write(img)
+                logger.info(f"图片已保存至{image_path}")
             qr_callback(img)
             logger.debug(f"QR login received, token{qrToken}")
             scanned = False

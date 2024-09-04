@@ -24,6 +24,7 @@ DEFAULT_CONFIG = {
         "show_in_terminal": None,
         "ensure_unicode": False
     },
+    "image_path":"",
     "pushplus": {
         "enable": False,
         "token": ""
@@ -36,7 +37,8 @@ DEFAULT_CONFIG = {
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
-    with open(getConfigPath(), 'r+') as f:
+    with open(getConfigPath(), 'r+', encoding="UTF-8") as f:
+        # 不指定编码格式会导致config中可能存在的中文字符乱码
         config = ObjDict(json.load(f), default=None)
         if "config_version" not in config:
             config.config_version = "1.0.0"
@@ -86,6 +88,8 @@ parser.add_argument("--proxy", type=str,
                     help="Proxy Config, e.g: http://127.0.0.1:8080")
 parser.add_argument("--tree_view", type=bool,
                     help="print the tree progress view of the course")
+parser.add_argument("--image_path", type=str,
+                    help="Image save path, default is empty (do not save)")
 
 args = parser.parse_args()
 
@@ -97,6 +101,7 @@ save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
 show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal
 tree_view = args.tree_view or config.tree_view
+image_path = args.image_path or config.image_path
 if show_in_terminal is None:
     # Defaults to terminal in Windows
     show_in_terminal = platform.system() == "Windows"
@@ -145,7 +150,7 @@ with open(getRealPath("meta.json"), "r") as f:
 
 # create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit,
-                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view)
+                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view, image_path=image_path)
 
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False
