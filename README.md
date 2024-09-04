@@ -78,7 +78,7 @@
 
 ### Login
 
-_\*如果非常用地登入会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单._  
+_\*如果非常用地登入（可能？）会需要短信验证, 您应该先用浏览器登入一次, 以让您的所在地列入白名单。_  
  _\*\*信息优先级: 命令行 > 配置文件 > 交互输入_
 
 ### 使用配置文件
@@ -90,24 +90,37 @@ _\*如果非常用地登入会需要短信验证, 您应该先用浏览器登入
   "username": "",
   "password": "",
   "qrlogin": true,
+  "save_cookies": true,
   "proxies": {},
   "logLevel": "INFO",
+  "tree_view": true,
+  "progressbar_vier": false,
   "qr_extra": {
-        "show_in_terminal": false,
-        "ensure_unicode": false
-    },
-  "push": {
-    "enable": false,
-    "token": "",
-  }
+      "show_in_terminal": null,
+      "ensure_unicode": false
+  },
+  "image_path": "",
+  "pushplus": {
+      "enable": false,
+      "token": ""
+  },
+  "bark": {
+      "enable": false,
+      "token": "https://example.com/xxxxxxxxx"
+  },
+  "config_version": "1.3.0"
 }
 ```
 
 - `username`: 账号
 - `password`: 密码
-- `qrlogin`: 启用二维码登陆, 方便在服务器上部署, 优先级高于账号密码
+- `qrlogin`: **目前强制启用**二维码登陆, 方便在服务器上部署, 优先级高于账号密码
 - `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
 - `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`
+- `save_cookies`: 保存cookies，*短时间*内可以自动登录。
+- `tree_view`: 课程目录结构，关闭后不显示所有课程目录。
+- `progressbar_vier`: 进度条控制，关闭后不显示当前视频进度。
+- `image_path`: 登录二维码保存路径，留空则不保存。
 - `qr_extra`: QR 相关配置
   - `show_in_terminal`: 将二维码打印至终端
   - `ensure_unicode`: 仅使用 Unicode 字符打印二维码
@@ -118,7 +131,7 @@ _\*如果非常用地登入会需要短信验证, 您应该先用浏览器登入
   - `enable`: 启用推送
   - `token`: 推送 token，例如：`https://api.day.app/xxxxxxxxxxxxx`
 
-~填入账号密码即可无干预自动登入~ 当前失效  
+~~填入账号密码即可无干预自动登入~~ **当前失效**  
  _\*配置文件如果没有的话会在 main.py 执行时自动创建._
 
 ### 使用命令行参数登入
@@ -192,7 +205,7 @@ python main.py --fetch
 - `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
 - `-u`, `--username`: 账号
 - `-p`, `--password`: 密码
-- `-q`, `--qrlogin`:
+- `-q`, `--qrlogin`: 二维码登录，目前**强制开启**
 - `-s`, `--speed`: ~~**POWERR AND SPEEEEED!**~~ 指定播放速度, 想要秒过可以设个很高的值(e.g. 644), 但不推荐. 默认为浏览器观看能到的最大值
 - `-t`, `--threshold`: 完成时播放百分比, 高于该值视作完成, 想要重复刷课可以使用大于 `1.0` 的值, 例如 `2.0` 则会再刷一遍
 - `-l`, `--limit`: 单节课的时限, 如果您看得上内点习惯分就用吧
@@ -200,6 +213,9 @@ python main.py --fetch
 - `-f`, `--fetch`: 获取课程清单并存入 _execution.json_ 文件
 - `--show_in_terminal`: 将二维码打印至终端
 - `--proxy`: 代理设置, 本来用来调试的(e.g. <http://127.0.0.1:8080>)
+- `--tree_view`: 课程目录结构，关闭后不显示所有课程目录。
+- `--progressbar_view`: 进度条控制，关闭后不显示当前视频进度。
+- `--image_path`: 登录二维码保存路径，留空则不保存。
 - `-h` `--help`: 显示帮助
 
 运行示例如下:
