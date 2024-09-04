@@ -57,6 +57,7 @@ class Fucker:
                  pushplus_token: str = '',
                  bark_token: str = '',
                  tree_view:bool = True,
+                 progressbar_view:bool = True,
                  image_path:str = ""):
         """
         ### Fucker Class
@@ -102,6 +103,7 @@ class Fucker:
         self._pushplus = partial(pushpluser, token=pushplus_token) if pushplus_token else lambda *args, **kwargs: None
         self._bark = partial(barkpusher, token=bark_token) if bark_token else lambda *args, **kwargs: None
         self.tree_view = tree_view
+        self.progressbar_view = progressbar_view
         self.image_path = image_path
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
@@ -581,7 +583,7 @@ class Fucker:
             # have a glance of when quiz is answered
             action = "pause a minute" if pause else \
                     f"fucking {video.videoId}" if answer is None else "answering quiz"
-            progressBar(s, e, prefix=action, suffix="done")
+            progressBar(s, e, prefix=action, suffix="done", progressbar_view=self.progressbar_view)
         ##### end main event loop
         time.sleep(random()+1) # old Joe needs more sleep
 
@@ -916,8 +918,7 @@ class Fucker:
                 not (int(played_time-prev_time) % interval):
                 ret_time = self.saveStuStudyRecord(course_id,file_id,played_time,prev_time,start_date) # report progress
                 prev_time, played_time = ret_time, ret_time
-            progressBar(played_time, end_time,
-                        prefix=f"fucking {file_id}", suffix="done")
+            progressBar(played_time, end_time, prefix=f"fucking {file_id}", suffix="done", progressbar_view=self.progressbar_view)
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
         time.sleep(random()+1) # more human-like
 
