@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
     "save_cookies": True,
     "proxies": {},
     "logLevel": "INFO",
+    "tree_view": True,
     "qr_extra": {
         "show_in_terminal": None,
         "ensure_unicode": False
@@ -83,6 +84,8 @@ parser.add_argument("--show_in_terminal",
                     action="store_true", help="Show QR in terminal")
 parser.add_argument("--proxy", type=str,
                     help="Proxy Config, e.g: http://127.0.0.1:8080")
+parser.add_argument("--tree_view", type=bool,
+                    help="print the tree progress view of the course")
 
 args = parser.parse_args()
 
@@ -93,6 +96,7 @@ qrlogin = args.qrlogin or config.qrlogin or True  # Force enabled for v2.3.*
 save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
 show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal
+tree_view = args.tree_view or config.tree_view
 if show_in_terminal is None:
     # Defaults to terminal in Windows
     show_in_terminal = platform.system() == "Windows"
@@ -140,8 +144,8 @@ with open(getRealPath("meta.json"), "r") as f:
         print("*Failed to check update\n")
 
 # create an instance, now we are talking... or fucking
-fucker = Fucker(proxies=proxies, speed=args.speed,
-                end_thre=args.threshold, limit=args.limit, pushplus_token=pushplus_token, bark_token=bark_token)
+fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit,
+                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view)
 
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False

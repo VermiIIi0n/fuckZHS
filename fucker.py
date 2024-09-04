@@ -55,7 +55,8 @@ class Fucker:
                  speed: float = None,
                  end_thre: float = None,
                  pushplus_token: str = '',
-                 bark_token: str = ''):
+                 bark_token: str = '',
+                 tree_view:bool = True):
         """
         ### Fucker Class
         * `cookies`: dict, optional, cookies to use for the session
@@ -64,6 +65,7 @@ class Fucker:
         * `limit`: int, optional, time limit for each course, in minutes (default is 0), auto resets on fuck*Course methods call
         * `speed`: float, optional, video playback speed
         * `end_thre`: float, optional, threshold to stop the fucker, overloaded when there are questions left unanswered
+        * `tree_view` :bool, optional, print the tree progress view of the course
         """
         logger.debug(f"created a Fucker {id(self)}, limit: {limit}, speed: {speed}, end_thre: {end_thre}")
 
@@ -98,6 +100,7 @@ class Fucker:
         self.courses = ObjDict(default=None)       # store courses info
         self._pushplus = partial(pushpluser, token=pushplus_token) if pushplus_token else lambda *args, **kwargs: None
         self._bark = partial(barkpusher, token=bark_token) if bark_token else lambda *args, **kwargs: None
+        self.tree_view = tree_view
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self) -> RequestsCookieJar:
@@ -290,16 +293,15 @@ class Fucker:
                 logger.exception(e)
                 continue
 
-    def fuckCourse(self, course_id:str, tree_view:bool=True):
+    def fuckCourse(self, course_id:str):
         """
         ### Fuck the whole course
         * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
-        * `tree_view`: whether to print the tree view of the progress
         """
         if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
-            self.fuckZhidaoCourse(course_id, tree_view=tree_view) # it's a recruitAndCourseId
+            self.fuckZhidaoCourse(course_id) # it's a recruitAndCourseId
         else: # it's a courseId
-            self.fuckHikeCourse(course_id, tree_view=tree_view)
+            self.fuckHikeCourse(course_id)
 
     def fuckVideo(self, course_id, video_id:str):
         """
@@ -406,13 +408,12 @@ class Fucker:
         self.context[RAC_id] = ctx
         return ctx
         
-    def fuckZhidaoCourse(self, RAC_id:str, tree_view:bool=True):
+    def fuckZhidaoCourse(self, RAC_id:str):
         """
         * `RAC_id`: `recruitAndCourseId`
-        * `tree_view`: whether to print the tree progress view of the course
         """
         logger.info(f"Fucking Zhidao course {RAC_id}")
-        tprint = print if tree_view else lambda *a, **k: None
+        tprint = print if self.tree_view else lambda *a, **k: None
 
         # load context
         ctx = self.getZhidaoContext(RAC_id)
@@ -855,8 +856,8 @@ class Fucker:
         self.context[course_id] = ctx
         return ctx
     
-    def fuckHikeCourse(self, course_id:str, tree_view:bool=True):
-        tprint = print if tree_view else lambda *a, **k: None
+    def fuckHikeCourse(self, course_id:str):
+        tprint = print if self.tree_view else lambda *a, **k: None
         begin_time = time.time()
         root = self.getHikeContext(course_id).root
         
@@ -865,7 +866,7 @@ class Fucker:
         tprint(f"Fucking course {course_id} (total root chapters: {len(root)})")
         try:
             for chapter in root:
-                self._traverse(course_id, chapter, tree_view=tree_view)
+                self._traverse(course_id, chapter)
         except KeyboardInterrupt:
             logger.info("user interrupted")
         logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
@@ -912,9 +913,9 @@ class Fucker:
         self.stuViewFile(course_id, file_id)
         time.sleep(random()*2+1) # more human-like
 
-    def _traverse(self,course_id, node: ObjDict, depth=0, tree_view=True):
+    def _traverse(self,course_id, node: ObjDict, depth=0):
         depth += 1
-        tprint = print if tree_view else lambda *a, **k: None
+        tprint = print if self.tree_view else lambda *a, **k: None
         w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
         prefix = self.prefix * depth
         if node.childList: # if childList is not None, then it's a chapter
@@ -923,7 +924,7 @@ class Fucker:
             tprint(prefix) # separate chapters
             tprint(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
             for child in chapter.childList:
-                self._traverse(course_id, child, depth=depth, tree_view=tree_view)
+                self._traverse(course_id, child, depth=depth)
         else: # if childList is None, then it's a file
             file = node
             file.studyTime = file.studyTime or 0 # sometimes it's None
