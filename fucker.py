@@ -424,7 +424,12 @@ class Fucker:
         tprint(f"Fucking Zhidao course: {course.courseInfo.name or course.courseInfo.enName}")
         begin_time = time.time() # real world time
         prefix = self.prefix # prefix for tree-like print
-        w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+        try:
+            # 在 nohup 下运行无法获取，进行捕获
+            w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+        except Exception as e:
+            # 考虑直接移除此变量，但是保留原代码风格，故进行赋值
+            w_lim = 80
         try:
             for chapter in chapters.videoChapterDtos:
                 tprint(prefix) # extra line as separator
@@ -916,7 +921,12 @@ class Fucker:
     def _traverse(self,course_id, node: ObjDict, depth=0):
         depth += 1
         tprint = print if self.tree_view else lambda *a, **k: None
-        w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+        try:
+            # 在 nohup 下运行无法获取，进行捕获
+            w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+        except Exception as e:
+            # 考虑直接移除此变量，但是保留原代码风格，故进行赋值
+            w_lim = 80
         prefix = self.prefix * depth
         if node.childList: # if childList is not None, then it's a chapter
             chapter = node
