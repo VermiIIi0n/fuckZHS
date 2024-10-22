@@ -34,17 +34,17 @@ DEFAULT_CONFIG = {
     "config_version": "1.3.1",
     "ai": {
         "enabled": True,
-        "use_zhidao_ai": False,
+        "use_zhidao_ai": True,
         "openai": {
-            "api_base": "http://103.146.53.97:8000",
-            "api_key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhdXRoMHx1c2VyXzAxSkFRSjc4WlcyU1kyQlhQTTYzMkZINEhFIiwidGltZSI6IjE3Mjk1MTUyNDQiLCJyYW5kb21uZXNzIjoiMTI4YWE4M2QtY2FiNy00NzQ3IiwiZXhwIjo0MzIxNTE1MjQ0LCJpc3MiOiJodHRwczovL2F1dGhlbnRpY2F0aW9uLmN1cnNvci5zaCIsInNjb3BlIjoib3BlbmlkIHByb2ZpbGUgZW1haWwgb2ZmbGluZV9hY2Nlc3MiLCJhdWQiOiJodHRwczovL2N1cnNvci5jb20ifQ.8EBdnd80fOoUn9QqkA-mYdGw-siR9UXgqAkSBzo2WoM",
+            "api_base": "https://api.openai.com",
+            "api_key": "sk-",
             "model_name": "claude-3-5-sonnet-20240620"
         },
         "ppt_processing": {
-            "provide_to_ai": True,
+            "provide_to_ai": False,
             "moonShot": {
                 "base_url": "https://api.moonshot.cn/v1",
-                "api_key": "sk-z4IX7q3lsRYFreKacVGOiXZDycYnXlaxomslmKZDMzM7Epgm",
+                "api_key": "sk-",
                 "delete_after_convert": True
             }
         },
