@@ -112,8 +112,8 @@ parser.add_argument("--progressbar_view", type=bool,
 parser.add_argument("--image_path", type=str,
                     help="Image save path, default is empty (do not save)")
 parser.add_argument("-ai", "--aicourse", type=str, nargs=2,
-                    metavar=('COURSE_ID', 'EXAM_ID'),
-                    help="AI Course ID and Exam ID for AI exam")
+                    metavar=('COURSE_ID', 'CLASS_ID'),
+                    help="AI Course ID and CLASS ID to fuck aiCourse")
 
 parser.add_argument("--noexam", type=bool,
                     help="Disable AI exam")
