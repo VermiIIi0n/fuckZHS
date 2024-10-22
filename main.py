@@ -19,19 +19,22 @@ DEFAULT_CONFIG = {
     "save_cookies": True,
     "proxies": {},
     "logLevel": "INFO",
+    "tree_view": True,
+    "progressbar_vier": True,
     "qr_extra": {
         "show_in_terminal": None,
         "ensure_unicode": False
     },
+    "image_path":"",
     "pushplus": {
         "enable": False,
         "token": ""
     },
-    "bark": {
+    "bark":{
         "enable": False,
         "token": "https://example.com/xxxxxxxxx"
     },
-    "config_version": "1.3.1",
+    "config_version": "1.3.0",
     "ai": {
         "enabled": True,
         "use_zhidao_ai": True,
