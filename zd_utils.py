@@ -6,6 +6,7 @@ import json
 IV = b"1g3qqdh4jvbskb9x"
 
 HOME_KEY  = b"7q9oko0vqb3la20r"
+AI_KEY=b"hw2fdlwcj4cs1mx7"
 VIDEO_KEY = b"azp53h0kft7qi78q"
 QA_KEY    = b"kcGOlISPkYKRksSK"
 EXAM_KEY  = b"onbfhdyvz8x7otrp"
@@ -55,7 +56,6 @@ class WatchPoint:
     def gen(time:int):
         return int(time//5+2)
 
-
 def getEv(data:list, key:str="zzpttjd"):
     """
     * key:
@@ -102,9 +102,18 @@ if __name__ == "__main__":
     h = Cipher(HOME_KEY)
     q = Cipher(QA_KEY)
     e = Cipher(EXAM_KEY)
+    a = Cipher(AI_KEY)
+    
     #print(getEv([1,2,3,4,'你']))
-    d = "R8b5YgowBZhvyiaFlYAhdoTbupkjQBWiT2cwpDf275SvouM6xvxeAv9YdvdYw97tfmjBuqoXPcj7ptqnWJcFPwtWZMv6Ptld70F5yIl8R9Q="
-    r = ObjDict(json.loads(q.decrypt(d)))
-    print(r)
-    #print(r.watchPoint)
-    print(revEv(r.sdsew))
+    # d = "R8b5YgowBZhvyiaFlYAhdoTbupkjQBWiT2cwpDf275SvouM6xvxeAv9YdvdYw97tfmjBuqoXPcj7ptqnWJcFPwtWZMv6Ptld70F5yIl8R9Q="
+    # r = ObjDict(json.loads(q.decrypt(d)))
+    # print(r)
+    # #print(r.watchPoint)
+    # print(revEv(r.sdsew))
+
+    encoded = a.encrypt(json.dumps({'courseId': '1839576198548688896', 'classId': 4239, 'dateFormate': 1729175218000}))
+    print(encoded)
+
+    decoded = e.decrypt("xI1pFlV/3UmvLdGDXuK0f2iiN+Po+oSemJWfhnvgzCu9/KU6P2vSWty3Qe2QIxtGJ/Ik+jvUrnNZJZEXvandQiv4039O/MevpN5QUEhDwNJ1Yep+dYhGjdBOgkzjUvxl")
+
+    print(decoded)
