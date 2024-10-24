@@ -34,7 +34,25 @@ DEFAULT_CONFIG = {
         "enable": False,
         "token": "https://example.com/xxxxxxxxx"
     },
-    "config_version": "1.3.0"
+    "config_version": "1.3.0",
+    "ai": {
+        "enabled": True,
+        "use_zhidao_ai": True,
+        "openai": {
+            "api_base": "https://api.openai.com",
+            "api_key": "sk-",
+            "model_name": "claude-3-5-sonnet-20240620"
+        },
+        "ppt_processing": {
+            "provide_to_ai": False,
+            "moonShot": {
+                "base_url": "https://api.moonshot.cn/v1",
+                "api_key": "sk-",
+                "delete_after_convert": True
+            }
+        },
+        "use_stream": True
+    }
 }
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
@@ -93,6 +111,12 @@ parser.add_argument("--progressbar_view", type=bool,
                     help="print the progressbar view of the course")
 parser.add_argument("--image_path", type=str,
                     help="Image save path, default is empty (do not save)")
+parser.add_argument("-ai", "--aicourse", type=str, nargs=2,
+                    metavar=('COURSE_ID', 'CLASS_ID'),
+                    help="AI Course ID and CLASS ID to fuck aiCourse")
+
+parser.add_argument("--noexam", type=bool,
+                    help="Disable AI exam")
 
 args = parser.parse_args()
 
@@ -154,7 +178,7 @@ with open(getRealPath("meta.json"), "r") as f:
 
 # create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit,
-                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view,progressbar_view=progressbar_view, image_path=image_path)
+                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view, progressbar_view=progressbar_view, image_path=image_path)
 
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False
@@ -170,6 +194,10 @@ if save_cookies and os.path.exists(cookies_path):
         ls = fucker.getHikeList()
         if ls:
             fucker.getHikeContext(ls[-1].courseId)
+
+        ls = fucker.getZhidaoAiList()
+        if ls:
+            pass
         print("Successfully recovered from saved cookies\n")
         cookies_loaded = True
 
@@ -195,6 +223,63 @@ if not cookies_loaded:
 # you can add cookies manually by setting cookies property of a Fucker instance
 # notice that cookies of zhihuishu.com expires if you login again in somewhere else
 # fucker.cookies = {}
+
+if args.aicourse:
+    course_id, class_id = args.aicourse
+    try:
+        def validate_config(config):
+            ai_config = config.get("ai", {})
+            
+            if not isinstance(ai_config, dict):
+                raise ValueError("AI配置不是字典，请检查配置文件")
+
+            if ai_config.get("enabled", False) and ai_config.get("use_zhidao_ai", False):
+                validate_openai_config(ai_config.get("openai", {}))
+            
+            validate_ppt_config(ai_config.get("ppt_processing", {}))
+
+        def validate_openai_config(openai_config):
+            if not isinstance(openai_config, dict):
+                raise ValueError(f"OpenAI配置不是字典，而是{type(openai_config)}，请检查配置文件")
+            
+            required_fields = ["api_key", "api_base", "model_name"]
+            missing_fields = [field for field in required_fields if not openai_config.get(field)]
+            
+            if missing_fields:
+                raise ValueError(f"OpenAI配置不完整，缺少以下字段：{', '.join(missing_fields)}。请检查配置文件")
+
+        def validate_ppt_config(ppt_config):
+            if not isinstance(ppt_config, dict):
+                raise ValueError(f"PPT处理配置不是字典，而是{type(ppt_config)}，请检查配置文件")
+            
+            if ppt_config.get("provide_to_ai", False):
+                moonShot_conf = ppt_config.get("moonShot", {})
+                required_fields = ["base_url", "api_key"]
+                missing_fields = [field for field in required_fields if not moonShot_conf.get(field)]
+                
+                if missing_fields:
+                    raise ValueError(f"PPT处理配置不完整，缺少以下字段：{', '.join(missing_fields)}。请检查配置文件")
+
+        # 使用示例
+        try:
+            validate_config(config)
+        except ValueError as e:
+            print(f"配置错误: {e}")
+            exit(1)
+
+        if args.noexam:
+            no_exam = True
+        else:
+            no_exam = False
+
+        fucker.fuckAiCourse(course_id, class_id, aiConfig=config.ai, no_exam = no_exam)
+    except Exception as e:
+        logger.exception(e)
+        print(f"Error when fucking AI course {course_id}:\n{e}")
+    finally:
+        print("AI exam finished")
+        exit(0)
+
 
 exec_list = getRealPath("execution.json")
 # fetch course list
