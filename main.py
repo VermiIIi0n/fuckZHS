@@ -20,7 +20,7 @@ DEFAULT_CONFIG = {
     "proxies": {},
     "logLevel": "INFO",
     "tree_view": True,
-    "progressbar_vier": True,
+    "progressbar_view": True,
     "qr_extra": {
         "show_in_terminal": None,
         "ensure_unicode": False

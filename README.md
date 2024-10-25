@@ -94,7 +94,7 @@ _\*如果非常用地登入（可能？）会需要短信验证, 您应该先用
   "proxies": {},
   "logLevel": "INFO",
   "tree_view": true,
-  "progressbar_vier": false,
+  "progressbar_view": false,
   "qr_extra": {
       "show_in_terminal": null,
       "ensure_unicode": false
@@ -119,7 +119,7 @@ _\*如果非常用地登入（可能？）会需要短信验证, 您应该先用
 - `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`
 - `save_cookies`: 保存cookies，*短时间*内可以自动登录。
 - `tree_view`: 课程目录结构，关闭后不显示所有课程目录。
-- `progressbar_vier`: 进度条控制，关闭后不显示当前视频进度。
+- `progressbar_view`: 进度条控制，关闭后不显示当前视频进度。
 - `image_path`: 登录二维码保存路径，留空则不保存。
 - `qr_extra`: QR 相关配置
   - `show_in_terminal`: 将二维码打印至终端
