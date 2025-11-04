@@ -15,6 +15,16 @@ def strToClass(class_name: str, module: str="__main__"):
     return getattr(sys.modules[module], class_name)
 
 def showImage(img, show_in_terminal=False, ensure_unicode=False):
+    os.makedirs("./images", exist_ok=True)
+    filepath = os.path.join("./images", "qr.temp.jpg")
+
+    try:
+        image_obj = Image.open(io.BytesIO(img))
+        image_obj.save(filepath, format="JPEG")
+    except Exception as e:
+        print(f"Failed to save QR code: {e}")
+        pass
+        
     if show_in_terminal:
         if ensure_unicode:
             terminalShowImage_unicode(img)
