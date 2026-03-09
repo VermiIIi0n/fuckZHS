@@ -1276,7 +1276,11 @@ class Fucker:
 
             begin_time = time.time()  # real world time
             prefix = self.prefix  # prefix for tree-like print
-            w_lim = os.get_terminal_size().columns-1  # width limit for terminal output
+            # width limit for terminal output
+            try:
+                w_lim = os.get_terminal_size().columns - 1
+            except OSError:
+                w_lim = 79
 
             cakeThemeList = knowledgePoints.cakeThemeList
         except Exception as e:
@@ -1602,13 +1606,20 @@ class ExamCtx:
         
         self.allAnswerCache = {}
         for key, value in Allcache.items():
-            if '_' in key:
-                questionId, version = key.split('_')
+            key_str = str(key)
+            parts = key_str.rsplit('_', 1)
+            if len(parts) == 2 and parts[0] != "":
+                questionId, version = parts
                 self.allAnswerCache[f"{questionId}_{version}"] = value
+                # 尝试把 version 也同步到 value 里（兼容旧缓存）
+                try:
+                    value['version'] = int(version) if str(version).strip() else 1
+                except Exception:
+                    value['version'] = value.get('version', 1) or 1
             else:
-                self.allAnswerCache[key] = value
+                self.allAnswerCache[key_str] = value
                 # 为没有版本号的答案添加默认版本
-                value['version'] = 1
+                value['version'] = value.get('version', 1) or 1
 
 
         answerpath = self.getAnswerpath(examTestId)
@@ -1618,13 +1629,19 @@ class ExamCtx:
         # 转换缓存格式以支持版本号
         self.answerCache = {}
         for key, value in cache.items():
-            if '_' in key:
-                questionId, version = key.split('_')
+            key_str = str(key)
+            parts = key_str.rsplit('_', 1)
+            if len(parts) == 2 and parts[0] != "":
+                questionId, version = parts
                 self.answerCache[f"{questionId}_{version}"] = value
+                try:
+                    value['version'] = int(version) if str(version).strip() else 1
+                except Exception:
+                    value['version'] = value.get('version', 1) or 1
             else:
-                self.answerCache[key] = value
+                self.answerCache[key_str] = value
                 # 为没有版本号的答案添加默认版本
-                value['version'] = 1
+                value['version'] = value.get('version', 1) or 1
 
         return self.answerCache, self.allAnswerCache
 
@@ -1836,10 +1853,16 @@ class ExamCtx:
             if "id" in option and "content" in option
         ]
 
-        # 选项数量少于2个，答案就是选项内容
+        # 选项数量少于2个时，避免解包错误并做降级处理
+        if len(choices) == 0:
+            return None, "no choices"
         if len(choices) < 2:
-            answer = choices[0]["id"]
-            return [answer]
+            # 对于填空客观题，直接返回内容字符串；其它题型返回选项 ID
+            if questionType == 3:
+                answer = choices[0]["content"]
+            else:
+                answer = choices[0]["id"]
+            return [answer], "only one choice"
 
         try:
             # 选项数量大于2个，使用AI生成答案
@@ -1857,6 +1880,10 @@ class ExamCtx:
             else:
                 raise ValueError(f"Unsupported question type: {questionType}")
             answer = op.generateAnswer(prompt)
+            # 对于填空客观题，把选项 ID 转成实际填空内容，避免把大整数 ID 当成答案提交
+            if questionType == 3:
+                id_to_content = {c["id"]: c["content"] for c in choices}
+                answer = [id_to_content.get(a, str(a)) for a in answer]
             return answer, "AI generated"
         except Exception as e:
             # 随机生成答案
@@ -1959,10 +1986,16 @@ class ExamCtx:
                     f"Question {questionDict['questionId']} is not correct")
 
             # 获取题目答案
-            answer = [{"id": option["id"], "content": option["content"]}
-                      for option in questionContentDict["optionVos"]
-                      if option.get("isCorrect", 0) == 1]
-            answer_str = '#@#'.join([str(option["id"]) for option in answer])
+            questionType = questionDict.get("questionType", 1)
+            answer = [
+                {"id": option["id"], "content": option["content"]}
+                for option in questionContentDict["optionVos"]
+                if option.get("isCorrect", 0) == 1
+            ]
+            if questionType == 3:  # 填空客观题（自动批阅）——缓存与提交都使用内容字符串
+                answer_str = '#@#'.join([str(option["content"]) for option in answer])
+            else:
+                answer_str = '#@#'.join([str(option["id"]) for option in answer])
             answer_content_str = '\n'.join(
                 [option["content"] for option in answer])
 
