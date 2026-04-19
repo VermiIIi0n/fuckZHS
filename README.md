@@ -114,7 +114,7 @@ _\*如果非常用地登入（可能？）会需要短信验证, 您应该先用
 
 - `username`: 账号
 - `password`: 密码
-- `qrlogin`: **目前强制启用**二维码登陆, 方便在服务器上部署, 优先级高于账号密码
+- `qrlogin`: 二维码登陆, 方便在服务器上部署, 优先级高于账号密码。（曾经强制启用，现已修复。）
 - `proxies`: 代理, 可留空, 在 _Windows_ 上还可解决 _Clash_ 等代理造成的证书错误, 详见 [_常见问题_](https://github.com/VermiIIi0n/fuckZHS/discussions/25)
 - `logLevel`: 日志等级, 可选 `NOTSET` `DEBUG` `INFO` `WARNING` `ERROR` `CRITICAL`
 - `save_cookies`: 保存cookies，*短时间*内可以自动登录。
@@ -131,7 +131,7 @@ _\*如果非常用地登入（可能？）会需要短信验证, 您应该先用
   - `enable`: 启用推送
   - `token`: 推送 token，例如：`https://api.day.app/xxxxxxxxxxxxx`
 
-~~填入账号密码即可无干预自动登入~~ **当前失效**  
+填入账号密码即可自动登录，但须手动完成安全验证。  
  _\*配置文件如果没有的话会在 main.py 执行时自动创建._
 
 ### 使用命令行参数登入
@@ -178,7 +178,7 @@ python main.py -ai 114514 4444
 ### 拉清单
 
 使用 `--fetch` 参数可从服务器获得所有课程清单, 存储到 _execution.json_ 这个小本本里, 您可以删去不想干的课程  
-当该文件存在且没有指定课程 ID 时, 会先看看这个小本本上有没有写着课程 ID  
+当该文件存在且没有指定课程 ID 时, 会先看看这个小本本上有没有写着课程 ID（但随着一次关于fetch的修复，小本本现在不能被自动读取并运行）  
 _\*清单中 `id` 参数是必须的, 想额外拉清单时请注意_  
 _\*\*修改时请注意 JSON 语法, 不然 Exceptions 会一下突开到脸上_
 
@@ -191,12 +191,16 @@ python main.py --fetch
 ```JSON
 [
     {
-        "name": "中国近现代史",
-        "id": "42"
+        "name": "历史",
+        "id": "233",
+        "courseType": "mapCourse",
+        "classId": "114514"
     },
-    {
-        "name": "思想道德与法治",
-        "id": "1919"
+  {
+        "name": "生物",
+        "id": "114514",
+        "courseType": "mapCourse",
+        "classId": "233"
     }
 ]
 ```
@@ -335,6 +339,8 @@ def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watc
 - fucker.py: `Fucker` 类定义, 所有核心代码全塞一起了, 莫在意
 - ObjDict.py: `ObjDict` 类定义, 继承自 `dict`, 可以 `object` 属性形式访问 `dict`
 - zd_utils.py: 知到 API 所需的工具, 如生成 `ev` 和 `secretStr`
+- faker.py: 利用账号密码自动登录并获取cookies
+- polymas_course_fetcher.py: 修复后的课程列表获取工具（能力所限未能整合入fucker.py，期待高手合并，并解决兼容问题。）
 - config.json: 还能是啥, 没有的话初次运行 _main.py_ 时将生成
 - meta.json: 包含版本和分支等信息, 也用于更新检查
 - decrypt: 非必要的文件夹, 内含逆向源代码的工具及源码打包

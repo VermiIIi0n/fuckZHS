@@ -4,6 +4,8 @@ import json
 import argparse
 import requests
 import platform
+import faker
+import polymas_course_fetcher
 from functools import partial
 from contextlib import suppress
 from fucker import Fucker
@@ -25,12 +27,12 @@ DEFAULT_CONFIG = {
         "show_in_terminal": None,
         "ensure_unicode": False
     },
-    "image_path":"",
+    "image_path": "",
     "pushplus": {
         "enable": False,
         "token": ""
     },
-    "bark":{
+    "bark": {
         "enable": False,
         "token": "https://example.com/xxxxxxxxx"
     },
@@ -123,7 +125,7 @@ args = parser.parse_args()
 course = args.course
 username = args.username or config.username
 password = args.password or config.password
-qrlogin = args.qrlogin or config.qrlogin or True  # Force enabled for v2.3.*
+qrlogin = args.qrlogin or config.qrlogin  # Force-enabled in v2.3.*, now fixed. :-)
 save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
 show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal
@@ -178,7 +180,8 @@ with open(getRealPath("meta.json"), "r") as f:
 
 # create an instance, now we are talking... or fucking
 fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limit=args.limit,
-                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view, progressbar_view=progressbar_view, image_path=image_path)
+                pushplus_token=pushplus_token, bark_token=bark_token, tree_view=tree_view,
+                progressbar_view=progressbar_view, image_path=image_path)
 
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False
@@ -201,7 +204,6 @@ if save_cookies and os.path.exists(cookies_path):
         print("Successfully recovered from saved cookies\n")
         cookies_loaded = True
 
-
 # first you need to login to get cookies
 if not cookies_loaded:
     try:
@@ -210,7 +212,7 @@ if not cookies_loaded:
                 showImage, show_in_terminal=show_in_terminal, ensure_unicode=ensure_unicode)
             fucker.login(use_qr=True, qr_callback=callback)
         else:
-            fucker.login(username, password)
+            faker.login(username, password)
         print("Login Successful\n")
         if save_cookies:
             with open(cookies_path, 'w') as f:
@@ -229,36 +231,39 @@ if args.aicourse:
     try:
         def validate_config(config):
             ai_config = config.get("ai", {})
-            
+
             if not isinstance(ai_config, dict):
                 raise ValueError("AI配置不是字典，请检查配置文件")
 
             if ai_config.get("enabled", False) and ai_config.get("use_zhidao_ai", False):
                 validate_openai_config(ai_config.get("openai", {}))
-            
+
             validate_ppt_config(ai_config.get("ppt_processing", {}))
+
 
         def validate_openai_config(openai_config):
             if not isinstance(openai_config, dict):
                 raise ValueError(f"OpenAI配置不是字典，而是{type(openai_config)}，请检查配置文件")
-            
+
             required_fields = ["api_key", "api_base", "model_name"]
             missing_fields = [field for field in required_fields if not openai_config.get(field)]
-            
+
             if missing_fields:
                 raise ValueError(f"OpenAI配置不完整，缺少以下字段：{', '.join(missing_fields)}。请检查配置文件")
+
 
         def validate_ppt_config(ppt_config):
             if not isinstance(ppt_config, dict):
                 raise ValueError(f"PPT处理配置不是字典，而是{type(ppt_config)}，请检查配置文件")
-            
+
             if ppt_config.get("provide_to_ai", False):
                 moonShot_conf = ppt_config.get("moonShot", {})
                 required_fields = ["base_url", "api_key"]
                 missing_fields = [field for field in required_fields if not moonShot_conf.get(field)]
-                
+
                 if missing_fields:
                     raise ValueError(f"PPT处理配置不完整，缺少以下字段：{', '.join(missing_fields)}。请检查配置文件")
+
 
         # 使用示例
         try:
@@ -272,7 +277,7 @@ if args.aicourse:
         else:
             no_exam = False
 
-        fucker.fuckAiCourse(course_id, class_id, aiConfig=config.ai, no_exam = no_exam)
+        fucker.fuckAiCourse(course_id, class_id, aiConfig=config.ai, no_exam=no_exam)
     except Exception as e:
         logger.exception(e)
         print(f"Error when fucking AI course {course_id}:\n{e}")
@@ -280,16 +285,10 @@ if args.aicourse:
         print("AI exam finished")
         exit(0)
 
-
 exec_list = getRealPath("execution.json")
 # fetch course list
 if args.fetch:
-    with open(exec_list, "w") as f:
-        zhidao_ids = [{"name": c.courseName, "id": c.secret}
-                      for c in fucker.getZhidaoList()]
-        hike_ids = [{"name": c.courseName, "id": str(
-            c.courseId)} for c in fucker.getHikeList()]
-        json.dump(zhidao_ids + hike_ids, f, indent=4, ensure_ascii=False)
+    polymas_course_fetcher.fetch_and_save()
     exit(0)
 
 # get courses from file if not specified
