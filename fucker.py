@@ -467,13 +467,25 @@ class Fucker:
                             tprint(prefix)
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
-                        except CaptchaException:
-                            logger.info("Captcha required")
+                        except CaptchaException as e:
+                            logger.info(f"Captcha required: {e}")
                             self._pushplus("fuckZHS","需要提供验证码")
                             self._bark("fuckZHS","需要提供验证码")
-                            tprint(prefix)
-                            tprint(f"{prefix}##Captcha required\a\n")
-                            return
+                            tprint(f"{prefix*3}##Captcha: 需要滑块验证，请在知到APP/网页手动验证后等待重试...")
+                            # retry with backoff
+                            for retry in range(3):
+                                wait = 30 + retry * 30 + int(random() * 20)
+                                tprint(f"{prefix*3}##等待 {wait}s 后重试 ({retry+1}/3)...")
+                                time.sleep(wait)
+                                try:
+                                    self.fuckZhidaoVideo(RAC_id, video.videoId)
+                                    tprint(f"{prefix*3}##重试成功")
+                                    break
+                                except CaptchaException:
+                                    continue
+                            else:
+                                tprint(f"{prefix}##Captcha重试失败，请手动打开知到APP完成滑块验证后重新运行\a\n")
+                                return
                         except Exception as e:
                             logger.exception(e)
                             self._pushplus("fuckZHS",e)
@@ -529,7 +541,7 @@ class Fucker:
         speed = self.speed or 1.5  # default speed for Zhidao is 1.5
         last_submit = played_time  # last pause time
         elapsed_time = 0    # real world time elapsed
-        db_interval = 30    # database report interval
+        db_interval = 30 + randint(-5, 5)    # randomize report interval to avoid detection
         cache_interval = 18 # cache report interval
         answer = None       # answer flag, do not modify
         report = False      # report flag, do not modify
@@ -541,8 +553,10 @@ class Fucker:
             time.sleep(1)
             ctx.fucked_time += 1 # for time limit check
             elapsed_time += 1
-            played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
-            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, may avoid detection
+            # add small random speed variation to appear more human
+            speed_jitter = uniform(-0.15, 0.15)
+            played_time = min(played_time+speed+speed_jitter, end_time)
+            pause = pause or int(random() < 0.0035)*60 # randomly pause a minute, may avoid detection
             report = report or pause == 60  # report on pause
 
             ### events
@@ -577,10 +591,13 @@ class Fucker:
             if elapsed_time % db_interval == 0 or played_time >= end_time or report:
                 report = False # unset report flag
                 wp.add(played_time)
+                # add jitter before reporting to avoid detection
+                time.sleep(uniform(0.3, 1.5))
                 # now submit to database
                 self.saveDatabaseIntervalTimeV2(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
                 last_submit = played_time # update last pause time
                 wp.reset(played_time)     # reset watch point
+                db_interval = 30 + randint(-5, 5) # re-randomize interval
             ## report to cache
             if False and elapsed_time % cache_interval == 0:
                 wp.add(played_time)
@@ -628,7 +645,8 @@ class Fucker:
             ret.default = None
             match ret.code:
                 case -12:
-                    e = CaptchaException("captcha required")
+                    msg = ret.message or "captcha required"
+                    e = CaptchaException(f"Captcha required: {msg}")
                 case _:
                     e = Exception(f"code: {ret.code} " +
                                   f"msg: {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
@@ -924,19 +942,23 @@ class Fucker:
         total_time = int(file_info.totalTime)
         start_date = int(time.time()*1000)
         speed = self.speed or 1.25 # default speed for Hike is 1.25
-        interval = 30              # interval between 2 progess reports
+        interval = 30 + randint(-5, 5) # randomize interval to avoid detection
         end_time = max(total_time*self.end_thre, 1.0)
         played_time = prev_time    # total video played time
         # start main loop
         while played_time <= end_time:
             time.sleep(1)
             ctx.fucked_time += 1
-            played_time = min(played_time+speed, end_time)
+            # add small random speed variation
+            speed_jitter = uniform(-0.12, 0.12)
+            played_time = min(played_time+speed+speed_jitter, end_time)
             # enter branch when video is finished or interval is reached
             if played_time >= end_time or \
                 not (int(played_time-prev_time) % interval):
+                time.sleep(uniform(0.3, 1.5)) # jitter before report
                 ret_time = self.saveStuStudyRecord(course_id,file_id,played_time,prev_time,start_date) # report progress
                 prev_time, played_time = ret_time, ret_time
+                interval = 30 + randint(-5, 5) # re-randomize interval
             progressBar(played_time, end_time, prefix=f"fucking {file_id}", suffix="done", progressbar_view=self.progressbar_view)
         logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
         time.sleep(random()+1) # more human-like
@@ -1241,16 +1263,17 @@ class Fucker:
         played_time = startAt
         # 开始观看
         while played_time < video_length:
-            # 上传视频观看进度
+            # 上传视频观看进度 (with random jitter)
+            speed = self.speed or 1.5
             played_time = min(
-                int(round(played_time + (self.speed or 1.5) * 2)), video_length)
+                int(round(played_time + speed * 2 + uniform(-0.3, 0.3))), video_length)
             try:
                 self.reportAiVideoProcess(
                     courseId, classId, fileId, knowledgeId, played_time, watchUId=watchUId)
             except Exception as e:
                 logger.exception(e)
 
-            time.sleep(2)
+            time.sleep(2 + uniform(-0.3, 0.5))
 
             if self.progressbar_view:
                 # print progress bar
