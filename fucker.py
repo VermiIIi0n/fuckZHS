@@ -51,11 +51,14 @@ import tiktoken
 ⣿⣿⣿⣶⣶⣮⣥⣒⠲⢮⣝⡿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿⣿⣿
 """
 
+
 class TimeLimitExceeded(TimeoutError):
     pass
 
+
 class CaptchaException(Exception):
     pass
+
 
 class Fucker:
     def __init__(self, cookies: dict = None,
@@ -66,9 +69,9 @@ class Fucker:
                  end_thre: float = None,
                  pushplus_token: str = '',
                  bark_token: str = '',
-                 tree_view:bool = True,
-                 progressbar_view:bool = True,
-                 image_path:str = ""):
+                 tree_view: bool = True,
+                 progressbar_view: bool = True,
+                 image_path: str = ""):
         """
         ### Fucker Class
         * `cookies`: dict, optional, cookies to use for the session
@@ -81,9 +84,9 @@ class Fucker:
         """
         logger.debug(f"created a Fucker {id(self)}, limit: {limit}, speed: {speed}, end_thre: {end_thre}")
 
-        self.uuid = None # actually it's not a uuid, but a random string
+        self.uuid = None  # actually it's not a uuid, but a random string
         self.cookies = cookies or {}
-        self.proxies = proxies or urllib.request.getproxies() # explicitly use system proxy
+        self.proxies = proxies or urllib.request.getproxies()  # explicitly use system proxy
         self.headers = headers or {
             "Accept": "*/*",
             "sec-ch-ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"101\", \"Google Chrome\";v=\"101\"",
@@ -94,7 +97,7 @@ class Fucker:
             "Accept-Language": "en-GB,en;q=0.9"
         }
         retry = Retry(total=5,
-                      backoff_factor=0.1, 
+                      backoff_factor=0.1,
                       raise_on_status=True,
                       status_forcelist=[500, 502, 503, 504])
         self.session = requests.Session()
@@ -104,19 +107,20 @@ class Fucker:
         logger.debug(f'proxies: {self.proxies}')
         logger.debug(f'headers: {self.headers}')
 
-        self.limit = abs(limit)                    # time limit for fucking, in minutes
-        self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
-        self.end_thre = max(end_thre or 0, 0.0) or 0.91 # video play end threshold, above this will be considered as finished
-        self.prefix = "  |"                        # prefix for tree view
-        self.context = ObjDict(default=None)       # context for methods
-        self.courses = ObjDict(default=None)       # store courses info
+        self.limit = abs(limit)  # time limit for fucking, in minutes
+        self.speed = speed and max(speed, 0.1)  # video play speed, Falsy values for default
+        self.end_thre = max(end_thre or 0,
+                            0.0) or 0.91  # video play end threshold, above this will be considered as finished
+        self.prefix = "  |"  # prefix for tree view
+        self.context = ObjDict(default=None)  # context for methods
+        self.courses = ObjDict(default=None)  # store courses info
         self._pushplus = partial(pushpluser, token=pushplus_token) if pushplus_token else lambda *args, **kwargs: None
         self._bark = partial(barkpusher, token=bark_token) if bark_token else lambda *args, **kwargs: None
         self.tree_view = tree_view
         self.progressbar_view = progressbar_view
         self.image_path = image_path
 
-    @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
+    @property  # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self) -> RequestsCookieJar:
         return self._cookies
 
@@ -126,7 +130,7 @@ class Fucker:
             cookies = cookiejar_from_dict(cookies)
         elif isinstance(cookies, list):
             cookies = list_to_cookie_jar(cookies)
-        
+
         self._cookies = cookies
         logger.debug(f'received cookies: {self.cookies}')
         if cookies:
@@ -137,7 +141,8 @@ class Fucker:
                 raise ValueError("Cookies invalid")
         logger.debug(f"set cookies: {self._cookies}")
 
-    def login(self, username: str=None, password: str=None, interactive: bool=True, use_qr:bool=False, qr_callback: callable=None):
+    def login(self, username: str = None, password: str = None, interactive: bool = True, use_qr: bool = False,
+              qr_callback: callable = None):
         """* `interactive`: whether to use interactive mode to login"""
         if use_qr:
             if not callable(qr_callback):
@@ -157,7 +162,7 @@ class Fucker:
         login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
         valid_url = "https://passport.zhihuishu.com/user/validateAccountAndPassword"
         check_url = "https://appcomm-user.zhihuishu.com/app-commserv-user/userInfo/checkNeedAuth"
-        self._sessionReady() # set cookies, headers, proxies
+        self._sessionReady()  # set cookies, headers, proxies
         self.session.headers.update({
             "Origin": "https://passport.zhihuishu.com",
             "Referer": login_page
@@ -168,10 +173,10 @@ class Fucker:
                 "account": username,
                 "password": password
             }
-            user_info = self._apiQuery(valid_url, form) # get uuid and pwd
+            user_info = self._apiQuery(valid_url, form)  # get uuid and pwd
             match user_info.status:
                 case 1:
-                    pass # success
+                    pass  # success
                 case -2:
                     raise ValueError("Username or password invalid")
                 case -4:
@@ -179,14 +184,14 @@ class Fucker:
                 case -9:
                     raise Exception("Account requires SMS verification")
                 case _:
-                    pass # unknown error, just try to ignore
+                    pass  # unknown error, just try to ignore
             need_auth = self._apiQuery(check_url, {"uuid": user_info.uuid}).rt.needAuth
             if need_auth:
                 raise Exception("Account need auth, please login using browser to pass auth")
-            params = {"account":username,
+            params = {"account": username,
                       "pwd": user_info.pwd,
                       "validate": 0
-                    }
+                      }
             self.session.get(login_page, params=params, proxies=self.proxies, timeout=10)
             self.cookies = self.session.cookies.copy()
             if not self.cookies:
@@ -207,7 +212,7 @@ class Fucker:
             r = self.session.get(qr_page, timeout=10).json()
             qrToken = r["qrToken"]
             img = b64decode(r["img"])
-            if self.image_path != "": # 路径非空时保存图片到指定路径
+            if self.image_path != "":  # 路径非空时保存图片到指定路径
                 image_path = f"{os.path.join(self.image_path, time.strftime('%Y-%m-%dT%H-%M-%S'))}.png"
                 with open(image_path, "wb") as f:
                     f.write(img)
@@ -218,11 +223,11 @@ class Fucker:
             while True:
                 time.sleep(0.5)
                 msg = ObjDict(
-                    self.session.get(query_page, params={"qrToken":qrToken}, timeout=10).json(),
+                    self.session.get(query_page, params={"qrToken": qrToken}, timeout=10).json(),
                     default=None)
                 match msg.status:
                     case -1:
-                        pass # not scanned
+                        pass  # not scanned
                     case 0:
                         if not scanned:
                             scanned = True
@@ -231,7 +236,7 @@ class Fucker:
                     case 1:
                         logger.info(f"One-time code get: {msg.msg}")
                         print("One-time code received")
-                        self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
+                        self.session.get(login_page, params={"pwd": msg.oncePassword}, proxies=self.proxies, timeout=10)
                         self.cookies = self.session.cookies.copy()
                         if not self.cookies:
                             raise Exception("No cookies found")
@@ -246,54 +251,54 @@ class Fucker:
                         raise Exception(f"Unknown Response {msg.msg}")
 
         except TimeLimitExceeded:
-            self._qrlogin(qr_callback) # timeout? try again!
+            self._qrlogin(qr_callback)  # timeout? try again!
         except Exception as e:
             logger.exception(e)
             raise Exception(f"QR login failed: {e}")
 
-#    def _qrlogin(self, qr_callback):
-#        """Login using qr code"""
-#        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
-#        qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
-#        self._sessionReady()
-#        async def wait(url):
-#            async with websockets.connect(url, extra_headers=self.headers) as websocket:
-#                while True:
-#                    msg = await websocket.recv()
-#                    msg = ObjDict(json.loads(msg), default=None)
-#                    logger.debug(f"QR login received {msg}")
-#                    match msg.code:
-#                        case 0:
-#                            logger.info(f"QR Scanned: {msg.msg}")
-#                            print("QR Scanned")
-#                        case 1:
-#                            logger.info(f"One-time code get: {msg.msg}")
-#                            print("One-time code received")
-#                            self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
-#                            self.cookies = self.session.cookies.copy()
-#                            if not self.cookies:
-#                                raise Exception("No cookies found")
-#                            logger.info("Login successful")
-#                            break
-#                        case 2:
-#                            print("QR code expired")
-#                            raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
-#                        case 3:
-#                            raise Exception(f"Login canceled")
-#                        case _:
-#                            raise Exception(f"Unknown Response {msg.msg}")
-#        try:
-#            r = self.session.get(qr_page, timeout=10).json()
-#            qrToken = r["qrToken"]
-#            img = b64decode(r["img"])
-#            qr_callback(img)
-#            logger.debug("Start QR login WebSocket")
-#            asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
-#        except TimeLimitExceeded:
-#            self._qrlogin(qr_callback) # timeout? try again!
-#        except Exception as e:
-#            logger.exception(e)
-#            raise Exception(f"QR login failed: {e}")
+    #    def _qrlogin(self, qr_callback):
+    #        """Login using qr code"""
+    #        login_page = "https://passport.zhihuishu.com/login?service=https://onlineservice-api.zhihuishu.com/login/gologin"
+    #        qr_page = "https://passport.zhihuishu.com/qrCodeLogin/getLoginQrImg"
+    #        self._sessionReady()
+    #        async def wait(url):
+    #            async with websockets.connect(url, extra_headers=self.headers) as websocket:
+    #                while True:
+    #                    msg = await websocket.recv()
+    #                    msg = ObjDict(json.loads(msg), default=None)
+    #                    logger.debug(f"QR login received {msg}")
+    #                    match msg.code:
+    #                        case 0:
+    #                            logger.info(f"QR Scanned: {msg.msg}")
+    #                            print("QR Scanned")
+    #                        case 1:
+    #                            logger.info(f"One-time code get: {msg.msg}")
+    #                            print("One-time code received")
+    #                            self.session.get(login_page, params={"pwd":msg.oncePassword}, proxies=self.proxies, timeout=10)
+    #                            self.cookies = self.session.cookies.copy()
+    #                            if not self.cookies:
+    #                                raise Exception("No cookies found")
+    #                            logger.info("Login successful")
+    #                            break
+    #                        case 2:
+    #                            print("QR code expired")
+    #                            raise TimeLimitExceeded(f"QR code expired: {msg.msg}")
+    #                        case 3:
+    #                            raise Exception(f"Login canceled")
+    #                        case _:
+    #                            raise Exception(f"Unknown Response {msg.msg}")
+    #        try:
+    #            r = self.session.get(qr_page, timeout=10).json()
+    #            qrToken = r["qrToken"]
+    #            img = b64decode(r["img"])
+    #            qr_callback(img)
+    #            logger.debug("Start QR login WebSocket")
+    #            asyncio.run(wait(f"wss://appcomm-user.zhihuishu.com/app-commserv-user/websocket?qrToken={qrToken}"))
+    #        except TimeLimitExceeded:
+    #            self._qrlogin(qr_callback) # timeout? try again!
+    #        except Exception as e:
+    #            logger.exception(e)
+    #            raise Exception(f"QR login failed: {e}")
 
     def fuckWhatever(self):
         """Fuck whatever is found"""
@@ -312,17 +317,17 @@ class Fucker:
                 logger.exception(e)
                 continue
 
-    def fuckCourse(self, course_id:str):
+    def fuckCourse(self, course_id: str):
         """
         ### Fuck the whole course
         * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
         """
-        if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
-            self.fuckZhidaoCourse(course_id) # it's a recruitAndCourseId
-        else: # it's a courseId
+        if re.match(r".*[a-zA-Z].*", course_id):  # determine if it's a courseId or a recruitAndCourseId
+            self.fuckZhidaoCourse(course_id)  # it's a recruitAndCourseId
+        else:  # it's a courseId
             self.fuckHikeCourse(course_id)
 
-    def fuckVideo(self, course_id, video_id:str):
+    def fuckVideo(self, course_id, video_id: str):
         """
         ### Fuck a single video
         * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
@@ -333,12 +338,12 @@ class Fucker:
         else:
             self.fuckHikeVideo(course_id, video_id)
 
-#############################################
-# for some fucking reasons
-# there are 2 sets of completely different API for hike.zhihuishu.com and studyservice-api.zhihuishu.com
-# so we need to use different methods for different API
-#############################################
-# following are methods for studyservice-api.zhihuishu.com API
+    #############################################
+    # for some fucking reasons
+    # there are 2 sets of completely different API for hike.zhihuishu.com and studyservice-api.zhihuishu.com
+    # so we need to use different methods for different API
+    #############################################
+    # following are methods for studyservice-api.zhihuishu.com API
     def getZhidaoList(self):
         """
         ### Get all courses of zhidao from server
@@ -348,19 +353,19 @@ class Fucker:
         url = "https://onlineservice-api.zhihuishu.com/gateway/t/v1/student/course/share/queryShareCourseInfo"
         self._checkCookies()
         self._sessionReady()
-        page = 1 # initial page number
+        page = 1  # initial page number
         data = {"status": 0, "pageNo": page, "pageSize": 5}
         r = self.zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
         r.default = None
         total = r.totalCount or 0
         self.courses.zhidao = r.courseOpenDtos or []
-        for i in range(2, int(math.ceil(total/5))+1):
+        for i in range(2, int(math.ceil(total / 5)) + 1):
             data["pageNo"] = i
             r = self.zhidaoQuery(url, data, ok_code=200, key=HOME_KEY).result
             self.courses.zhidao += r.courseOpenDtos
         return self.courses.zhidao
 
-    def getZhidaoContext(self, RAC_id:str, force:bool=False):
+    def getZhidaoContext(self, RAC_id: str, force: bool = False):
         """
         ### fetch context for zhidao course
         * `RAC_id`: `recruitAndCourseId`
@@ -371,7 +376,7 @@ class Fucker:
         self._checkCookies()
         logger.info(f"Getting context for {RAC_id}")
 
-        self._sessionReady()        # set cookies, headers, proxies
+        self._sessionReady()  # set cookies, headers, proxies
         self.session.headers.update({
             "Origin": "https://studyh5.zhihuishu.com",
             "Referer": "https://studyh5.zhihuishu.com/"
@@ -391,12 +396,12 @@ class Fucker:
         for chapter in chapters.videoChapterDtos:
             for l in chapter.videoLessons:
                 lesson_ids.append(l.id)
-                if "videoId" in l: # this lesson has only one video
+                if "videoId" in l:  # this lesson has only one video
                     v = l.copy()
                     v.lessonId = l.id
                     v.id = 0
                     l.videoSmallLessons = [v]
-                for v in l.videoSmallLessons: 
+                for v in l.videoSmallLessons:
                     v.chapterId = chapter.id
                     videos[v.videoId] = v
         logger.info(f"{len(lesson_ids)} lessons, {len(videos)} videos")
@@ -407,7 +412,7 @@ class Fucker:
         # get study info, including watchState, studyTotalTime
         video_ids = [video.id for video in videos.values() if video.id]
         states = self.queryStudyInfo(lesson_ids, video_ids, recruit_id)
-        states.default = ObjDict(default=False)   # set default value for non exist attribute
+        states.default = ObjDict(default=False)  # set default value for non exist attribute
         for v in videos.values():
             state = states.lv[str(v.id)] or states.lesson[str(v.lessonId)]
             v.watchState, v.studyTotalTime = state.watchState, state.studyTotalTime
@@ -426,8 +431,8 @@ class Fucker:
         }, default={})
         self.context[RAC_id] = ctx
         return ctx
-        
-    def fuckZhidaoCourse(self, RAC_id:str):
+
+    def fuckZhidaoCourse(self, RAC_id: str):
         """
         * `RAC_id`: `recruitAndCourseId`
         """
@@ -438,53 +443,53 @@ class Fucker:
         ctx = self.getZhidaoContext(RAC_id)
         course = ctx.course
         chapters = ctx.chapters
-        
+
         # start fucking
         tprint(f"Fucking Zhidao course: {course.courseInfo.name or course.courseInfo.enName}")
-        begin_time = time.time() # real world time
-        prefix = self.prefix # prefix for tree-like print
+        begin_time = time.time()  # real world time
+        prefix = self.prefix  # prefix for tree-like print
         try:
             # 在 nohup 下运行无法获取，进行捕获
-            w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+            w_lim = os.get_terminal_size().columns - 1  # width limit for terminal output
         except Exception as e:
             # 考虑直接移除此变量，但是保留原代码风格，故进行赋值
             w_lim = 80
         try:
             for chapter in chapters.videoChapterDtos:
-                tprint(prefix) # extra line as separator
+                tprint(prefix)  # extra line as separator
                 tprint(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
                 for lesson in chapter.videoLessons:
-                    tprint(prefix*2)
-                    tprint(f"{prefix*2}__Fucking lesson {lesson.name}"[:w_lim])
+                    tprint(prefix * 2)
+                    tprint(f"{prefix * 2}__Fucking lesson {lesson.name}"[:w_lim])
                     for video in lesson.videoSmallLessons:
-                        tprint(f"{prefix*3}__Fucking video {video.name}"[:w_lim])
+                        tprint(f"{prefix * 3}__Fucking video {video.name}"[:w_lim])
                         try:
                             self.fuckZhidaoVideo(RAC_id, video.videoId)
                         except TimeLimitExceeded as e:
                             logger.info(f"Fucking time limit exceeded: {e}")
-                            self._pushplus("fuckZHS","刷课已完成")
-                            self._bark("fuckZHS","刷课已完成")
+                            self._pushplus("fuckZHS", "刷课已完成")
+                            self._bark("fuckZHS", "刷课已完成")
                             tprint(prefix)
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
                         except CaptchaException:
                             logger.info("Captcha required")
-                            self._pushplus("fuckZHS","需要提供验证码")
-                            self._bark("fuckZHS","需要提供验证码")
+                            self._pushplus("fuckZHS", "需要提供验证码")
+                            self._bark("fuckZHS", "需要提供验证码")
                             tprint(prefix)
                             tprint(f"{prefix}##Captcha required\a\n")
                             return
                         except Exception as e:
                             logger.exception(e)
-                            self._pushplus("fuckZHS",e)
-                            self._bark("fuckZHS",e)
-                            tprint(f"{prefix*3}##Failed: {e}"[:w_lim])
+                            self._pushplus("fuckZHS", e)
+                            self._bark("fuckZHS", e)
+                            tprint(f"{prefix * 3}##Failed: {e}"[:w_lim])
         except KeyboardInterrupt:
             logger.info("User interrupted")
         wipeLine()
         tprint(prefix)
-        tprint(f"\r{prefix}__Fucked course {course.courseInfo.name}, cost {time.time()-begin_time:.2f}s\n")
-    
+        tprint(f"\r{prefix}__Fucked course {course.courseInfo.name}, cost {time.time() - begin_time:.2f}s\n")
+
     def fuckZhidaoVideo(self, RAC_id, video_id):
         """
         * `RAC_id`: `recruitAndCourseId`
@@ -512,12 +517,12 @@ class Fucker:
         questions = questions.questionPoint or []
         questions = sorted(questions, key=lambda x: x.timeSec, reverse=True) if questions else None
         while questions and questions[-1].timeSec <= played_time:
-            questions.pop() # remove questions that are already answered
+            questions.pop()  # remove questions that are already answered
 
         # compute end time and make sure to answer all questions
         end_time = max(video.videoSec * self.end_thre, 1.0)
         if questions:
-            end_time = max(questions[0].timeSec, end_time) # compare last question time with end_time
+            end_time = max(questions[0].timeSec, end_time)  # compare last question time with end_time
 
         # emulating video playing
         self.watchVideo(video.videoId)
@@ -528,21 +533,21 @@ class Fucker:
         # prepare vars
         speed = self.speed or 1.5  # default speed for Zhidao is 1.5
         last_submit = played_time  # last pause time
-        elapsed_time = 0    # real world time elapsed
-        db_interval = 30    # database report interval
-        cache_interval = 18 # cache report interval
-        answer = None       # answer flag, do not modify
-        report = False      # report flag, do not modify
-        pause = 0           # pause flag, do not modify
-        wp = WatchPoint()   # watch point, do not modify
+        elapsed_time = 0  # real world time elapsed
+        db_interval = 30  # database report interval
+        cache_interval = 18  # cache report interval
+        answer = None  # answer flag, do not modify
+        report = False  # report flag, do not modify
+        pause = 0  # pause flag, do not modify
+        wp = WatchPoint()  # watch point, do not modify
 
         ##### start main event loop, sort of...
         while played_time < end_time:
             time.sleep(1)
-            ctx.fucked_time += 1 # for time limit check
+            ctx.fucked_time += 1  # for time limit check
             elapsed_time += 1
-            played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
-            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, may avoid detection
+            played_time = min(played_time + speed, end_time)  # update video time and make sure not exceeding end_time
+            pause = pause or int(random() < 0.0025) * 60  # randomly pause a minute, may avoid detection
             report = report or pause == 60  # report on pause
 
             ### events
@@ -558,49 +563,50 @@ class Fucker:
                 question = questions.pop()
                 try:
                     question = self.lessonPopoupExam(RAC_id,
-                                                    video_id,
-                                                    question.questionIds
-                                ).lessonTestQuestionUseInterfaceDtos[0].testQuestion
-                    answer = 2    # answer delay time
-                    report = True # set report flag
+                                                     video_id,
+                                                     question.questionIds
+                                                     ).lessonTestQuestionUseInterfaceDtos[0].testQuestion
+                    answer = 2  # answer delay time
+                    report = True  # set report flag
                 except Exception as e:
                     logger.error(f"can't get question detail:\n{e}")
             ## answer questions
             if answer is not None:
                 if answer == 0:
-                    answer = None # unset answer flag
-                    self.saveLessonPopupExamSaveAnswer(RAC_id, video_id, question.questionId, self.answerZhidao(question))
+                    answer = None  # unset answer flag
+                    self.saveLessonPopupExamSaveAnswer(RAC_id, video_id, question.questionId,
+                                                       self.answerZhidao(question))
                 else:
-                    pause = pause or 1 # emulate pause on pop quiz
+                    pause = pause or 1  # emulate pause on pop quiz
                     answer -= 1
             ## report to database
             if elapsed_time % db_interval == 0 or played_time >= end_time or report:
-                report = False # unset report flag
+                report = False  # unset report flag
                 wp.add(played_time)
                 # now submit to database
-                self.saveDatabaseIntervalTimeV2(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
-                last_submit = played_time # update last pause time
-                wp.reset(played_time)     # reset watch point
+                self.saveDatabaseIntervalTimeV2(RAC_id, video_id, played_time, last_submit, wp.get(), token_id)
+                last_submit = played_time  # update last pause time
+                wp.reset(played_time)  # reset watch point
             ## report to cache
             if False and elapsed_time % cache_interval == 0:
                 wp.add(played_time)
-                self.saveCacheIntervalTime(RAC_id,video_id,played_time,last_submit,wp.get(),token_id)
-                last_submit = played_time # update last pause time
-                wp.reset(played_time)     # reset watch point
+                self.saveCacheIntervalTime(RAC_id, video_id, played_time, last_submit, wp.get(), token_id)
+                last_submit = played_time  # update last pause time
+                wp.reset(played_time)  # reset watch point
             ### end events
             # print progress bar
-            s, e = [60-pause, 60] if pause else [played_time, end_time]
+            s, e = [60 - pause, 60] if pause else [played_time, end_time]
             # have a glance of when quiz is answered
             action = "pause a minute" if pause else \
-                    f"fucking {video.videoId}" if answer is None else "answering quiz"
+                f"fucking {video.videoId}" if answer is None else "answering quiz"
             progressBar(s, e, prefix=action, suffix="done", progressbar_view=self.progressbar_view)
         ##### end main event loop
-        time.sleep(random()+1) # old Joe needs more sleep
+        time.sleep(random() + 1)  # old Joe needs more sleep
 
-    def answerZhidao(self, q:dict):
+    def answerZhidao(self, q: dict):
         """you can override this function to answer questions"""
         q = ObjDict(q)
-        a = [str(opt.id) for opt in q.questionOptions if opt.result=='1'] # choose correct answers
+        a = [str(opt.id) for opt in q.questionOptions if opt.result == '1']  # choose correct answers
         return ','.join(a)
 
     def zhidaoQuery(self, url: str, data: dict, encrypt: bool = True, ok_code: int = 0,
@@ -609,10 +615,10 @@ class Fucker:
         cipher = Cipher(key)
         if setTimeStamp:
             # somehow their timestamps are ending with 000
-            _t = int(time.time())*1000
+            _t = int(time.time()) * 1000
             data["dateFormate"] = _t
         logger.debug(
-            f"{method} url: {url}\nraw_data: {json.dumps(data,indent=4,ensure_ascii=False)}")
+            f"{method} url: {url}\nraw_data: {json.dumps(data, indent=4, ensure_ascii=False)}")
         form = {"secretStr": cipher.encrypt(
             json.dumps(data))} if encrypt else data
 
@@ -631,7 +637,7 @@ class Fucker:
                     e = CaptchaException("captcha required")
                 case _:
                     e = Exception(f"code: {ret.code} " +
-                                  f"msg: {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
+                                  f"msg: {ret.message or json.dumps(ret, indent=4, ensure_ascii=False)}")
             logger.error(e)
             raise e
         return ret
@@ -652,7 +658,7 @@ class Fucker:
         '''### query video/chapter list for zhidao share course'''
         videos_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/videolist"
         chapters = self.zhidaoQuery(videos_url, {"recruitAndCourseId": RAC_id}).data
-        chapters.default = [] # set default value for non exist attribute
+        chapters.default = []  # set default value for non exist attribute
         return chapters
 
     def queryStudyReadBefore(self, course_id, recruit_id):
@@ -660,9 +666,9 @@ class Fucker:
         read_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStudyReadBefore"
         return self.zhidaoQuery(read_url, data={"courseId": course_id, "recruitId": recruit_id}, ok_code=None).data
 
-    def queryStudyInfo(self, lesson_ids:list, video_ids:list, recruit_id):
+    def queryStudyInfo(self, lesson_ids: list, video_ids: list, recruit_id):
         '''### query study info for zhidao'''
-        state_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStuyInfo" # NOT MY TYPO
+        state_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryStuyInfo"  # NOT MY TYPO
         data = {
             "lessonIds": lesson_ids,
             "lessonVideoIds": video_ids,
@@ -672,7 +678,7 @@ class Fucker:
 
     def queryUserRecruitIdLastVideoId(self, recruit_id):
         '''### query user recruit id last video id for zhidao'''
-        last_url   = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryUserRecruitIdLastVideoId"
+        last_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/queryUserRecruitIdLastVideoId"
         return self.zhidaoQuery(last_url, data={"recruitId": recruit_id}).data
 
     def prelearningNote(self, RAC_id, video_id):
@@ -687,10 +693,10 @@ class Fucker:
             "ccCourseId": course_id,
             "chapterId": video.chapterId,
             "isApply": 1,
-            "lessonId": video.lessonId, # this.lessonId
-            "lessonVideoId": video.id, # this.smallLessonId
+            "lessonId": video.lessonId,  # this.lessonId
+            "lessonVideoId": video.id,  # this.smallLessonId
             "recruitId": recruit_id,
-            "videoId": video.videoId 
+            "videoId": video.videoId
         }
         return self.zhidaoQuery(note_url, data=data).data
 
@@ -703,40 +709,41 @@ class Fucker:
         video = ctx.videos[video_id]
         data = {
             "lessonId": video.lessonId,
-            "lessonVideoId": video.id, 
-            "recruitId": recruit_id, 
+            "lessonVideoId": video.id,
+            "recruitId": recruit_id,
             "courseId": course_id
         }
         return self.zhidaoQuery(event_url, data=data).data
 
-    def lessonPopoupExam(self, RAC_id, video_id, question_ids:list):
+    def lessonPopoupExam(self, RAC_id, video_id, question_ids: list):
         '''### query lesson popoup exam for zhidao'''
         getQ_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/lessonPopupExam"
         ctx = self.getZhidaoContext(RAC_id)
         video = ctx.videos[video_id]
-        data={
-            "lessonId": video.lessonId, # this.lessonId
-            "lessonVideoId": video.id, # this.smallLessonId
-            "questionIds" : question_ids
+        data = {
+            "lessonId": video.lessonId,  # this.lessonId
+            "lessonVideoId": video.id,  # this.smallLessonId
+            "questionIds": question_ids
         }
         return self.zhidaoQuery(getQ_url, data).data
 
-    def saveLessonPopupExamSaveAnswer(self, RAC_id, video_id, question_id, answer_ids:str):
+    def saveLessonPopupExamSaveAnswer(self, RAC_id, video_id, question_id, answer_ids: str):
         '''### save lesson popup exam save answer for zhidao'''
         subQ_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/popupAnswer/saveLessonPopupExamSaveAnswer"
         ctx = self.getZhidaoContext(RAC_id)
         course_id = ctx.chapters.courseId
         recruit_id = ctx.course.recruitId
         video = ctx.videos[video_id]
-        data={
-            "courseId": course_id, # this.courseId,
-            "recruitId": recruit_id, # this.recruitId
-            "testQuestionId": question_id, # this.pageList.testQuestion.questionId
-            "isCurrent": '1', # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
-            "lessonId": video.lessonId, # this.lessonId
-            "lessonVideoId": video.id, # this.smallLessonId
-            "answer": answer_ids, # this.answerStu.join(",")
-            "testType": 0 # always 0
+        data = {
+            "courseId": course_id,  # this.courseId,
+            "recruitId": recruit_id,  # this.recruitId
+            "testQuestionId": question_id,  # this.pageList.testQuestion.questionId
+            "isCurrent": '1',
+            # this.result ...it should be 'isCorrect'... in the name of lord, can somebody teach them eNgLIsH!!
+            "lessonId": video.lessonId,  # this.lessonId
+            "lessonVideoId": video.id,  # this.smallLessonId
+            "answer": answer_ids,  # this.answerStu.join(",")
+            "testType": 0  # always 0
         }
         return self.zhidaoQuery(subQ_url, data).data
 
@@ -748,15 +755,15 @@ class Fucker:
         video = ctx.videos[video_id]
         raw_ev = [
             recruit_id,
-            video.lessonId, # this.lessonId
-            video.id, # this.smallLessonId
-            video.videoId, # this.videoId
-            video.chapterId, # this.chapterId
-            '0', # this.data.studyStatus, always 0
-            int(played_time-last_submit), # this.playTimes
-            int(played_time), # this.totalStudyTime
-            HMS(seconds=min(video.videoSec, # more realistic
-                            int(played_time+randint(29,31)))) 
+            video.lessonId,  # this.lessonId
+            video.id,  # this.smallLessonId
+            video.videoId,  # this.videoId
+            video.chapterId,  # this.chapterId
+            '0',  # this.data.studyStatus, always 0
+            int(played_time - last_submit),  # this.playTimes
+            int(played_time),  # this.totalStudyTime
+            HMS(seconds=min(video.videoSec,  # more realistic
+                            int(played_time + randint(29, 31))))
         ]
         if not token_id:
             token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
@@ -774,35 +781,36 @@ class Fucker:
         params = {"videoId": video_id}
         return self.zhidaoQuery(ware_url, data=params, method="GET").data
 
-    def saveDatabaseIntervalTimeV2(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None, initial=False):
+    def saveDatabaseIntervalTimeV2(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None,
+                                   initial=False):
         '''### save database interval time for zhidao'''
         record_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveDatabaseIntervalTimeV2"
         ctx = self.getZhidaoContext(RAC_id)
         recruit_id = ctx.course.recruitId
         video = ctx.videos[video_id]
-        if initial: # sometimes a request like this happens, I originally thought it is the initialization request, but I might be wrong
+        if initial:  # sometimes a request like this happens, I originally thought it is the initialization request, but I might be wrong
             raw_ev = [
                 recruit_id,
-                video.chapterId, # this.chapterId
+                video.chapterId,  # this.chapterId
                 ctx.course.courseInfo.courseId,
-                video.lessonId, # this.smallLessonId
-                HMS(seconds=min(video.videoSec, int(played_time))) ,
+                video.lessonId,  # this.smallLessonId
+                HMS(seconds=min(video.videoSec, int(played_time))),
                 int(played_time),
-                video.videoId, # this.videoId
-                '0', # this.data.studyStatus, always 0
-                int(played_time), # this.totalStudyTime
+                video.videoId,  # this.videoId
+                '0',  # this.data.studyStatus, always 0
+                int(played_time),  # this.totalStudyTime
                 self.uuid
             ]
         else:
             raw_ev = [
                 recruit_id,
-                video.lessonId, # this.lessonId
-                video.id, # this.smallLessonId
-                video.videoId, # this.videoId
-                video.chapterId, # this.chapterId
-                '0', # this.data.studyStatus, always 0
-                int(played_time-last_submit), # this.playTimes
-                int(played_time), # this.totalStudyTime
+                video.lessonId,  # this.lessonId
+                video.id,  # this.smallLessonId
+                video.videoId,  # this.videoId
+                video.chapterId,  # this.chapterId
+                '0',  # this.data.studyStatus, always 0
+                int(played_time - last_submit),  # this.playTimes
+                int(played_time),  # this.totalStudyTime
                 HMS(seconds=min(video.videoSec, int(played_time))),
                 self.uuid + "zhs"
             ]
@@ -821,23 +829,23 @@ class Fucker:
 
     def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watch_point, token_id=None):
         '''### save cache interval time for zhidao'''
-        cache_url  = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveCacheIntervalTime"
+        cache_url = "https://studyservice-api.zhihuishu.com/gateway/t/v1/learning/saveCacheIntervalTime"
         ctx = self.getZhidaoContext(RAC_id)
         recruit_id = ctx.course.recruitId
         course_id = ctx.chapters.courseId
         video = ctx.videos[video_id]
-        #!! NOTICE: content is different from database
+        # !! NOTICE: content is different from database
         raw_ev = [
             recruit_id,
             video.chapterId,
             course_id,
             video.lessonId,
-            HMS(seconds=min(video.videoSec, # more realistic
-                            int(played_time+randint(10,20)))),
+            HMS(seconds=min(video.videoSec,  # more realistic
+                            int(played_time + randint(10, 20)))),
             int(played_time),
             video.videoId,
             video.id,
-            int(played_time-last_submit),
+            int(played_time - last_submit),
         ]
         if not token_id:
             token_id = self.prelearningNote(RAC_id, video_id).studiedLessonDto.id
@@ -849,9 +857,9 @@ class Fucker:
         }
         return self.zhidaoQuery(cache_url, data=data).data
 
-# end of zhidao methods
-#############################################
-# following are methods for hike API
+    # end of zhidao methods
+    #############################################
+    # following are methods for hike API
     def getHikeList(self):
         """
         ### Get all courses of zhidao from server
@@ -867,14 +875,14 @@ class Fucker:
         }
         r = self._apiQuery(url, params, "GET").result
         r.default = None
-        self.courses.hike = r.startInngcourseList or []# I've given up on their eNgLIsH
+        self.courses.hike = r.startInngcourseList or []  # I've given up on their eNgLIsH
         return self.courses.hike
 
-    def getHikeContext(self, course_id:str, force:bool=False):
+    def getHikeContext(self, course_id: str, force: bool = False):
         if course_id in self.context and not force:
             return self.context[course_id]
         self._checkCookies()
-        self._sessionReady() # set cookies, headers, proxies
+        self._sessionReady()  # set cookies, headers, proxies
         self.session.headers.update({
             "Origin": "https://hike.zhihuishu.com",
             "Referer": "https://hike.zhihuishu.com/"
@@ -888,12 +896,12 @@ class Fucker:
         }, default={})
         self.context[course_id] = ctx
         return ctx
-    
-    def fuckHikeCourse(self, course_id:str):
+
+    def fuckHikeCourse(self, course_id: str):
         tprint = print if self.tree_view else lambda *a, **k: None
         begin_time = time.time()
         root = self.getHikeContext(course_id).root
-        
+
         prefix = self.prefix
         logger.info(f"Fucking Hike course {course_id} (total root chapters: {len(root)})")
         tprint(f"Fucking course {course_id} (total root chapters: {len(root)})")
@@ -902,10 +910,10 @@ class Fucker:
                 self._traverse(course_id, chapter)
         except KeyboardInterrupt:
             logger.info("user interrupted")
-        logger.info(f"Fucked course {course_id}, cost {time.time()-begin_time}s")
+        logger.info(f"Fucked course {course_id}, cost {time.time() - begin_time}s")
         wipeLine()
         tprint(prefix)
-        tprint(f"{prefix}__Fucked course {course_id}, cost {time.time()-begin_time:.2f}s\n")
+        tprint(f"{prefix}__Fucked course {course_id}, cost {time.time() - begin_time:.2f}s\n")
 
     def fuckHikeVideo(self, course_id, file_id, prev_time=0):
         self._checkCookies()
@@ -913,7 +921,7 @@ class Fucker:
         logger.info(f"Fucking Hike video {file_id} of course {course_id}")
         begin_time = time.time()
         ctx = self.getHikeContext(course_id)
-        self._sessionReady(ctx) # set cookies, headers, proxies
+        self._sessionReady(ctx)  # set cookies, headers, proxies
         # get video info
         file_info = self.stuViewFile(course_id, file_id)
 
@@ -922,53 +930,55 @@ class Fucker:
 
         # getting ready to fuck
         total_time = int(file_info.totalTime)
-        start_date = int(time.time()*1000)
-        speed = self.speed or 1.25 # default speed for Hike is 1.25
-        interval = 30              # interval between 2 progess reports
-        end_time = max(total_time*self.end_thre, 1.0)
-        played_time = prev_time    # total video played time
+        start_date = int(time.time() * 1000)
+        speed = self.speed or 1.25  # default speed for Hike is 1.25
+        interval = 30  # interval between 2 progess reports
+        end_time = max(total_time * self.end_thre, 1.0)
+        played_time = prev_time  # total video played time
         # start main loop
         while played_time <= end_time:
             time.sleep(1)
             ctx.fucked_time += 1
-            played_time = min(played_time+speed, end_time)
+            played_time = min(played_time + speed, end_time)
             # enter branch when video is finished or interval is reached
             if played_time >= end_time or \
-                not (int(played_time-prev_time) % interval):
-                ret_time = self.saveStuStudyRecord(course_id,file_id,played_time,prev_time,start_date) # report progress
+                    not (int(played_time - prev_time) % interval):
+                ret_time = self.saveStuStudyRecord(course_id, file_id, played_time, prev_time,
+                                                   start_date)  # report progress
                 prev_time, played_time = ret_time, ret_time
-            progressBar(played_time, end_time, prefix=f"fucking {file_id}", suffix="done", progressbar_view=self.progressbar_view)
-        logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time()-begin_time:.2f}s")
-        time.sleep(random()+1) # more human-like
+            progressBar(played_time, end_time, prefix=f"fucking {file_id}", suffix="done",
+                        progressbar_view=self.progressbar_view)
+        logger.info(f"Fucked video {file_id} of course {course_id}, cost {time.time() - begin_time:.2f}s")
+        time.sleep(random() + 1)  # more human-like
 
     def fuckFile(self, course_id, file_id):
         self.stuViewFile(course_id, file_id)
-        time.sleep(random()*2+1) # more human-like
+        time.sleep(random() * 2 + 1)  # more human-like
 
-    def _traverse(self,course_id, node: ObjDict, depth=0):
+    def _traverse(self, course_id, node: ObjDict, depth=0):
         depth += 1
         tprint = print if self.tree_view else lambda *a, **k: None
         try:
             # 在 nohup 下运行无法获取，进行捕获
-            w_lim = os.get_terminal_size().columns-1 # width limit for terminal output
+            w_lim = os.get_terminal_size().columns - 1  # width limit for terminal output
         except Exception as e:
             # 考虑直接移除此变量，但是保留原代码风格，故进行赋值
             w_lim = 80
         prefix = self.prefix * depth
-        if node.childList: # if childList is not None, then it's a chapter
+        if node.childList:  # if childList is not None, then it's a chapter
             chapter = node
             logger.debug(f"Fucking chapter {chapter.id}")
-            tprint(prefix) # separate chapters
+            tprint(prefix)  # separate chapters
             tprint(f"{prefix}__Fucking chapter {chapter.name}"[:w_lim])
             for child in chapter.childList:
                 self._traverse(course_id, child, depth=depth)
-        else: # if childList is None, then it's a file
+        else:  # if childList is None, then it's a file
             file = node
-            file.studyTime = file.studyTime or 0 # sometimes it's None
+            file.studyTime = file.studyTime or 0  # sometimes it's None
             logger.debug(f"Fucking file {file.id}, data type: {file.dataType}")
             tprint(f"{prefix}__Fucking {file.name}"[:w_lim])
 
-            if file.studyTime >= file.totalTime*self.end_thre:
+            if file.studyTime >= file.totalTime * self.end_thre:
                 logger.debug(f"Skipped file {file.id}")
                 return
 
@@ -988,19 +998,19 @@ class Fucker:
                 logger.exception(e)
                 tprint(f"{prefix}##Failed: {e}"[:w_lim])
 
-    def hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
-                   setTimeStamp:bool=True, method:str="GET"):
+    def hikeQuery(self, url: str, data: dict, sig: bool = False, ok_code: int = 200,
+                  setTimeStamp: bool = True, method: str = "GET"):
         """set ok_code to None for no check"""
         if setTimeStamp:
-            data["_"] = int(time.time()*1000) # miliseconds
+            data["_"] = int(time.time() * 1000)  # miliseconds
         if sig:
-            for k,v in data.items():
+            for k, v in data.items():
                 data[k] = str(v)
             data["signature"] = sign(data)
         ret = self._apiQuery(url, data, method=method)
         if ok_code is not None and int(ret.status) != ok_code:
             ret.default = None
-            e = Exception(f"{ret.status} {ret.message or json.dumps(ret,indent=4,ensure_ascii=False)}")
+            e = Exception(f"{ret.status} {ret.message or json.dumps(ret, indent=4, ensure_ascii=False)}")
             logger.error(e)
             raise e
         return ret
@@ -1028,45 +1038,47 @@ class Fucker:
             "uuid": self.uuid,
             "courseId": course_id,
             "fileId": file_id,
-            "studyTotalTime": int(played_time-prev_time),
+            "studyTotalTime": int(played_time - prev_time),
             "startWatchTime": int(prev_time),
             "endWatchTime": int(played_time),
             "startDate": start_date,
-            "endDate": int(time.time()*1000),
+            "endDate": int(time.time() * 1000),
         }
         rt = self.hikeQuery(url, params, sig=True, ok_code=200).rt
         if rt is None:
             raise Exception("Failed to save study record")
         return rt
 
-# end of hike methods
-#######################################
-# shared methods
-    def watchVideo(self, video_id): # it's probably unnecessary but let's keep it to fool those idiots
+    # end of hike methods
+    #######################################
+    # shared methods
+    def watchVideo(self, video_id):  # it's probably unnecessary but let's keep it to fool those idiots
         headers = self.session.headers.copy()
         cookies = self.session.cookies.copy()
         parse_url = "https://newbase.zhihuishu.com/video/initVideo"
+
         def watch():
             # get video link
             r = requests.get(parse_url, params={
-                                "jsonpCallBack": "result",
-                                "videoID": str(video_id),
-                                "_": int(time.time()*1000)
-                            },
-                            cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
-            r = re.match(r"^result\((.*)\)$",r.text).group(1)
+                "jsonpCallBack": "result",
+                "videoID": str(video_id),
+                "_": int(time.time() * 1000)
+            },
+                             cookies=cookies, headers=headers, proxies=self.proxies, timeout=10)
+            r = re.match(r"^result\((.*)\)$", r.text).group(1)
             url = ObjDict(json.loads(r)).result.lines[0].lineUrl
             try:
                 requests.get(url, headers=headers, cookies=cookies, proxies=self.proxies)
             except Exception as e:
                 logger.error(f"Failed to watch video {video_id}")
                 logger.exception(e)
+
         watch_thread = Thread(target=watch)
         watch_thread.start()
 
     def _apiQuery(self, url: str, data: dict, method: str = "POST", contentType: str = "form"):
         method = method.upper()
-        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data,indent=4,ensure_ascii=False)}\n" +
+        logger.debug(f"{method} url: {url}\ndata: {json.dumps(data, indent=4, ensure_ascii=False)}\n" +
                      f"headers: {json.dumps(self.headers, indent=4)}\n" +
                      f"cookies: {self.session.cookies}\n" +
                      f"proxies: {json.dumps(self.session.proxies, indent=4)}")
@@ -1103,10 +1115,10 @@ class Fucker:
             raise e
 
     def _checkTimeLimit(self, cid):
-        if self.limit and self.context[cid].fucked_time >= self.limit*60:
+        if self.limit and self.context[cid].fucked_time >= self.limit * 60:
             raise TimeLimitExceeded(f"{self.limit} minutes")
 
-    def _sessionReady(self, ctx:dict=None):
+    def _sessionReady(self, ctx: dict = None):
         ctx = ObjDict(ctx or {}, recursive=False, default=False)
         self.session.cookies = ctx.cookies or self.cookies.copy()
         self.session.headers = ctx.headers or self.headers.copy()
@@ -1161,7 +1173,8 @@ class Fucker:
 
         return ret
 
-    def reportAiVideoProcess(self, courseId: int, classId: int, fileId: int, knowledgeId: int, lastWatchTime: int, studyTotalTime: int = 10, shareCourseId: str = "", nodeType: int = 0, watchUId: int = 1):
+    def reportAiVideoProcess(self, courseId: int, classId: int, fileId: int, knowledgeId: int, lastWatchTime: int,
+                             studyTotalTime: int = 10, shareCourseId: str = "", nodeType: int = 0, watchUId: int = 1):
         """
         ### 上传智慧树AI视频观看进度
         """
@@ -1170,8 +1183,10 @@ class Fucker:
         self._sessionReady()
 
         now = int(time.time() * 1000)
-        data = {"courseId": courseId, "classId": classId, "fileId": fileId, "knowledgeId": knowledgeId, "lastWatchTime": lastWatchTime,
-                "studyTotalTime": studyTotalTime, "shareCourseId": shareCourseId, "nodeType": nodeType, "watchUId": watchUId, "dateFormate": now}
+        data = {"courseId": courseId, "classId": classId, "fileId": fileId, "knowledgeId": knowledgeId,
+                "lastWatchTime": lastWatchTime,
+                "studyTotalTime": studyTotalTime, "shareCourseId": shareCourseId, "nodeType": nodeType,
+                "watchUId": watchUId, "dateFormate": now}
         try:
             ret = self.zhidaoQuery(
                 url, data, ok_code=200, key=AI_KEY, contentType="json").data
@@ -1217,7 +1232,8 @@ class Fucker:
             logger.exception(e)
             return None
 
-    def fuckAiVideo(self, courseId: int, classId: int, fileId: int, knowledgeId: int, watchUId: int = 1, startAt: int = 0):
+    def fuckAiVideo(self, courseId: int, classId: int, fileId: int, knowledgeId: int, watchUId: int = 1,
+                    startAt: int = 0):
         """
         ### 观看智慧树AI视频
         """
@@ -1276,8 +1292,8 @@ class Fucker:
 
             begin_time = time.time()  # real world time
             prefix = self.prefix  # prefix for tree-like print
-            w_lim = os.get_terminal_size().columns-1  # width limit for terminal output
 
+            w_lim = os.get_terminal_size().columns - 1  # width limit for terminal output
             cakeThemeList = knowledgePoints.cakeThemeList
         except Exception as e:
             logger.exception(e)
@@ -1292,9 +1308,9 @@ class Fucker:
                 knowledgeList = theme.knowledgeList
             except Exception as e:
                 logger.exception(e)
-                tprint(prefix*2)
+                tprint(prefix * 2)
                 tprint(
-                    f"{prefix*2}__Theme {theme.themeName} has no knowledge points")
+                    f"{prefix * 2}__Theme {theme.themeName} has no knowledge points")
                 continue
 
             # 遍历知识点
@@ -1302,11 +1318,11 @@ class Fucker:
                 ppts = []
                 ppt_conf = aiConfig.get("ppt_processing", {})
                 moonShot_conf = ppt_conf.get("moonShot", {})
-                tprint(prefix*2)  # extra line as separator
+                tprint(prefix * 2)  # extra line as separator
                 tprint(
-                    f"{prefix*2}__Fucking knowledge point {knowledge.knowledgeName}"[:w_lim])
+                    f"{prefix * 2}__Fucking knowledge point {knowledge.knowledgeName}"[:w_lim])
 
-                    # 获取资源列表
+                # 获取资源列表
                 if knowledge.studyProgress < 100:  # knowledge point not fucked
                     try:
                         resources = self.listKnowledgeResources(
@@ -1314,23 +1330,23 @@ class Fucker:
                         resourceList = resources.resourceList
                     except Exception as e:
                         logger.exception(e)
-                        tprint(prefix*3)
+                        tprint(prefix * 3)
                         tprint(
-                            f"{prefix*3}__Failed to get resources for knowledge point {knowledge.knowledgeName}")
+                            f"{prefix * 3}__Failed to get resources for knowledge point {knowledge.knowledgeName}")
                         continue
                     # 遍历资源
                     for resource in resourceList:
                         time.sleep(randint(1, 10) * 0.2)  # random delay
-                        tprint(prefix*3)  # extra line as separator
+                        tprint(prefix * 3)  # extra line as separator
                         tprint(
-                            f"{prefix*3}__Fucking resource {resource.resourcesDetail.resourcesName}"[:w_lim])
+                            f"{prefix * 3}__Fucking resource {resource.resourcesDetail.resourcesName}"[:w_lim])
 
                         # 判断资源类型
                         resourceType = resource.resourcesDetail.resourcesType
                         resourceDistributeType = resource.resourcesDetail.resourcesDistributeType
                         if resource.studyStatus == 1:  # already fucked
-                            tprint(prefix*4)
-                            tprint(f"{prefix*4}__Resource already fucked")
+                            tprint(prefix * 4)
+                            tprint(f"{prefix * 4}__Resource already fucked")
 
                             if resourceType == 1 and resourceDistributeType == 4:  # ppt
                                 pptName = resource.resourcesDetail.resourcesName
@@ -1343,14 +1359,15 @@ class Fucker:
                             continue
 
                         # text or powerpoint
-                        if (resourceType == 2 and resourceDistributeType == 1) or (resourceType == 1 and resourceDistributeType == 4):
+                        if (resourceType == 2 and resourceDistributeType == 1) or (
+                                resourceType == 1 and resourceDistributeType == 4):
                             try:
                                 self.aiResourseComplete(
                                     courseId, classId, knowledge.knowledgeId, resource.resourcesDetail.resourcesUid, 1)
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Resource type is {'text' if resourceType == 2 else 'ppt'}, fucked")
-                                
+                                    f"{prefix * 4}__Resource type is {'text' if resourceType == 2 else 'ppt'}, fucked")
+
                                 resourceType = resource.resourcesDetail.resourcesType
                                 resourceDistributeType = resource.resourcesDetail.resourcesDistributeType
 
@@ -1364,50 +1381,52 @@ class Fucker:
                                     })
                             except Exception as e:
                                 logger.exception(e)
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Failed to fuck text/ppt resource {resource.resourcesDetail.resourcesName}")
+                                    f"{prefix * 4}__Failed to fuck text/ppt resource {resource.resourcesDetail.resourcesName}")
                         elif resourceType == 1 and resourceDistributeType == 3:  # video
                             try:
                                 self.fuckAiVideo(
-                                    courseId, classId, resource.resourcesDetail.resourcesFileId, knowledge.knowledgeId, 1)
-                                tprint(prefix*4)
+                                    courseId, classId, resource.resourcesDetail.resourcesFileId, knowledge.knowledgeId,
+                                    1)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Fucked video {resource.resourcesDetail.resourcesName}")
+                                    f"{prefix * 4}__Fucked video {resource.resourcesDetail.resourcesName}")
                             except Exception as e:
                                 logger.exception(e)
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Failed to fuck video {resource.resourcesDetail.resourcesName}, {e}")
+                                    f"{prefix * 4}__Failed to fuck video {resource.resourcesDetail.resourcesName}, {e}")
                         elif resourceType == 2 and resourceDistributeType == 2:  # 新增的条件，处理智慧树课程视频
                             try:
                                 # 假设我们使用与普通视频相同的方法来处理这种资源
                                 self.fuckAiVideo(
-                                    courseId, classId, resource.resourcesDetail.resourcesFileId, knowledge.knowledgeId, 1)
-                                tprint(prefix*4)
+                                    courseId, classId, resource.resourcesDetail.resourcesFileId, knowledge.knowledgeId,
+                                    1)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Fucked Zhihuishu course video {resource.resourcesDetail.resourcesName}")
+                                    f"{prefix * 4}__Fucked Zhihuishu course video {resource.resourcesDetail.resourcesName}")
                             except Exception as e:
                                 logger.exception(e)
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Failed to fuck Zhihuishu course video {resource.resourcesDetail.resourcesName}, {e}")
+                                    f"{prefix * 4}__Failed to fuck Zhihuishu course video {resource.resourcesDetail.resourcesName}, {e}")
                         else:
-                            tprint(prefix*4)
+                            tprint(prefix * 4)
                             try:
                                 self.aiResourseComplete(
                                     courseId, classId, knowledge.knowledgeId, resource.resourcesDetail.resourcesUid, 1)
                                 tprint(
-                                    f"{prefix*4}__Resource type is {resourceType}, distribute type is {resourceDistributeType}, fucked")
+                                    f"{prefix * 4}__Resource type is {resourceType}, distribute type is {resourceDistributeType}, fucked")
                             except Exception as e:
                                 logger.exception(e)
                                 tprint(
-                                    f"{prefix*4}__Failed to fuck resource {resource.resourcesDetail.resourcesName}, {e}")
+                                    f"{prefix * 4}__Failed to fuck resource {resource.resourcesDetail.resourcesName}, {e}")
                             continue
 
-                    tprint(prefix*3)  # extra line as separator
+                    tprint(prefix * 3)  # extra line as separator
                     tprint(
-                        f"{prefix*3}__Fucked knowledge point {knowledge.knowledgeName}")
+                        f"{prefix * 3}__Fucked knowledge point {knowledge.knowledgeName}")
                 else:
                     if ppt_conf.get("provide_to_ai", False) and moonShot_conf.get("api_key", ""):
                         try:
@@ -1416,9 +1435,9 @@ class Fucker:
                             resourceList = resources.resourceList
                         except Exception as e:
                             logger.exception(e)
-                            tprint(prefix*3)
+                            tprint(prefix * 3)
                             tprint(
-                                f"{prefix*3}__Failed to get resources for knowledge point {knowledge.knowledgeName}")
+                                f"{prefix * 3}__Failed to get resources for knowledge point {knowledge.knowledgeName}")
                             continue
                         for resource in resourceList:
                             resourceType = resource.resourcesDetail.resourcesType
@@ -1431,8 +1450,8 @@ class Fucker:
                                     "name": pptName,
                                     "url": pptUrl
                                 })
-                    tprint(prefix*3)
-                    tprint(f"{prefix*3}__Knowledge point already fucked")
+                    tprint(prefix * 3)
+                    tprint(f"{prefix * 3}__Knowledge point already fucked")
 
                 # 开始测试部分
                 tried_count = 0
@@ -1440,31 +1459,31 @@ class Fucker:
                     if no_exam:
                         break
 
-                    tprint(prefix*3)
+                    tprint(prefix * 3)
                     tprint(
-                        f"{prefix*3}__Starting exam for knowledge point {knowledge.knowledgeName}")
+                        f"{prefix * 3}__Starting exam for knowledge point {knowledge.knowledgeName}")
                     exam = self.queryAiExam(
                         courseId, classId, knowledge.knowledgeId)
                     if not exam or not exam.get("paperId"):
-                        tprint(prefix*4)
+                        tprint(prefix * 4)
                         tprint(
-                            f"{prefix*4}__No exam available for this knowledge point")
+                            f"{prefix * 4}__No exam available for this knowledge point")
                         break
 
                     mastery_score = exam.get("masteryScore", None)
                     if not mastery_score:
                         mastery_score = 0
                     if mastery_score < 30 and tried_count > 4:
-                        tprint(prefix*4)
+                        tprint(prefix * 4)
                         tprint(
-                            f"{prefix*4}__Mastery score below 30, tried {tried_count} times, giving up")
+                            f"{prefix * 4}__Mastery score below 30, tried {tried_count} times, giving up")
                         break
 
                     tried_count += 1
                     if mastery_score is not None and mastery_score > 90:
-                        tprint(prefix*4)
+                        tprint(prefix * 4)
                         tprint(
-                            f"{prefix*4}__Mastery score already above 90: {exam['masteryScore']}")
+                            f"{prefix * 4}__Mastery score already above 90: {exam['masteryScore']}")
                         break
 
                     exam_ctx = ExamCtx(fucker=self,
@@ -1483,45 +1502,48 @@ class Fucker:
 
                     # 将ppt转为text
                     if ppt_conf.get("provide_to_ai", False) and moonShot_conf.get("api_key", ""):
-                        ppt2txt = PptToTxt(moonShotKey=moonShot_conf.get("api_key", ""),baseUrl=moonShot_conf.get("base_url","https://api.moonshot.cn/v1"))
+                        ppt2txt = PptToTxt(moonShotKey=moonShot_conf.get("api_key", ""),
+                                           baseUrl=moonShot_conf.get("base_url", "https://api.moonshot.cn/v1"))
                         for ppt in ppts:
                             try:
                                 content = ppt2txt.parseTxt(ppt["url"])
                                 ppt["content"] = content
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Converted ppt {ppt['name']} to text")
+                                    f"{prefix * 4}__Converted ppt {ppt['name']} to text")
                             except Exception as e:
                                 logger.exception(e)
-                                tprint(prefix*4)
+                                tprint(prefix * 4)
                                 tprint(
-                                    f"{prefix*4}__Failed to convert ppt {ppt['name']}, {e}")
+                                    f"{prefix * 4}__Failed to convert ppt {ppt['name']}, {e}")
 
                     is_success, correct_count, total_count = exam_ctx.startFuck(referenceMaterials=ppts)
 
-                    tprint(prefix*4)
+                    tprint(prefix * 4)
                     tprint(
-                        f"{prefix*4}__Exam attempt: Success: {is_success}, Score: {correct_count}/{total_count}")
+                        f"{prefix * 4}__Exam attempt: Success: {is_success}, Score: {correct_count}/{total_count}")
 
                     # random sleep to avoid being detected as a bot
                     time.sleep(math.ceil(uniform(0.5, 1.5)))
 
-                    tprint(prefix*3)
+                    tprint(prefix * 3)
                     tprint(
-                        f"{prefix*3}__Finished exam for knowledge point {knowledge.knowledgeName}")
+                        f"{prefix * 3}__Finished exam for knowledge point {knowledge.knowledgeName}")
 
-            tprint(prefix*2)  # extra line as separator
-            tprint(f"{prefix*2}__Fucked theme {theme.themeName}")
+            tprint(prefix * 2)  # extra line as separator
+            tprint(f"{prefix * 2}__Fucked theme {theme.themeName}")
 
             # random sleep to avoid being detected as a bot
             time.sleep(math.ceil(uniform(0.5, 1.5)))
 
         tprint(prefix)  # extra line as separator
         tprint(
-            f"{prefix}__Fucked Zhidao AI course {knowledgePoints.courseName} in {time.time()-begin_time:.2f}s")
+            f"{prefix}__Fucked Zhidao AI course {knowledgePoints.courseName} in {time.time() - begin_time:.2f}s")
+
 
 class ExamCtx:
-    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int, progress_view: bool = True, aiConfig: dict = {}, opExtra: dict = {}):
+    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int,
+                 progress_view: bool = True, aiConfig: dict = {}, opExtra: dict = {}):
         self.fucker = fucker
         self.courseId = courseId
         self.examTestId = examTestId
@@ -1532,10 +1554,11 @@ class ExamCtx:
         self.progress_view = progress_view
 
         self.answerCache = {}
-        self.allAnswerCache = {} # 存储同课程所有题目的答案
+        self.allAnswerCache = {}  # 存储同课程所有题目的答案
         self.sheetContent = None
         self.timeUpdateIndex = 0
         self.examStopped = False
+        self.op = None  # 默认为None，AI未启用时填空题将使用fallback
 
         if aiConfig.get("enabled", False) and not aiConfig.get("use_zhidao_ai", False):
             opConf: dict = aiConfig.get("openai", {})
@@ -1572,8 +1595,8 @@ class ExamCtx:
                 json.dump({}, f)
 
         return answerpath
-    
-    def getAllAnswerpath(self): # 同课程所有题目的答案
+
+    def getAllAnswerpath(self):  # 同课程所有题目的答案
         answerpath = getRealPath(
             f"aiexamAnswer/{self.courseId}/data.json")
 
@@ -1599,7 +1622,7 @@ class ExamCtx:
             with open(file_path, "r", encoding="utf-8") as f:
                 cache = json.load(f)
                 Allcache.update(cache)
-        
+
         self.allAnswerCache = {}
         for key, value in Allcache.items():
             if '_' in key:
@@ -1609,7 +1632,6 @@ class ExamCtx:
                 self.allAnswerCache[key] = value
                 # 为没有版本号的答案添加默认版本
                 value['version'] = 1
-
 
         answerpath = self.getAnswerpath(examTestId)
         with open(answerpath, "r", encoding="utf-8") as f:
@@ -1639,7 +1661,7 @@ class ExamCtx:
 
     def getAnswer(self, questionId: int, version: int = 1) -> dict | None:
         key = str(questionId) if version == 1 else f"{questionId}_{version}"
-        result = self.allAnswerCache.get(key) # 从同课程所有题目的答案中获取
+        result = self.allAnswerCache.get(key)  # 从同课程所有题目的答案中获取
         return result
 
     def setAnswer(self, questionId: int, version: int, answer_data: dict):
@@ -1715,7 +1737,7 @@ class ExamCtx:
 
         data = {
             "examTestId": self.examTestId,
-            "examPaperId":  self.examPaperId
+            "examPaperId": self.examPaperId
         }
 
         try:
@@ -1740,7 +1762,7 @@ class ExamCtx:
         url = "https://studentexamtest.zhihuishu.com/gateway/t/v1/question/getExamQuestionInfo"
         data = {
             "examTestId": self.examTestId,
-            "examPaperId":  self.examPaperId,
+            "examPaperId": self.examPaperId,
             "questionId": questionId,
             "version": version
         }
@@ -1763,7 +1785,6 @@ class ExamCtx:
         if len(answers) == 0:
             return False
         url = "https://studentexamtest.zhihuishu.com/gateway/t/v1/answer/saveAnswer"
-
         data = {
             "recruitId": self.courseId,
             "examTestId": self.examTestId,
@@ -1828,42 +1849,54 @@ class ExamCtx:
 
         # 答案不存在，获取题目内容，使用AI生成答案
         questionContent = questionDict["content"]
-
-        # 选项，只保留有id和content的选项
+        # 选项，只保留有id和content的选项（填空题可能没有optionVos）
+        optionVos = questionDict.get("optionVos", [])
         choices = [
             {"id": option["id"], "content": option["content"]}
-            for option in questionDict["optionVos"]
+            for option in optionVos
             if "id" in option and "content" in option
         ]
-
-        # 选项数量少于2个，答案就是选项内容
-        if len(choices) < 2:
+        # 选项数量少于2个，答案就是选项内容(也可能是新题型，可能有未知的东西)
+        if len(choices) < 2 and questionType != 3:
             answer = choices[0]["id"]
-            return [answer]
+            logger.warning(f"the length of choice is less than 2, the content is {questionContent}")
+            return [answer], "cached"
 
         try:
-            # 选项数量大于2个，使用AI生成答案
+            # 使用AI生成答案
             op = self.op
 
-            if questionType == 1:
+            if questionType == 3:
+                # 填空题
+                prompt = op.fillBlankTemplate(questionContent, referenceMaterials=self.referenceMaterials)
+                answer = op.generateFillBlankAnswer(prompt)
+            elif questionType == 1:
                 # 单选题
                 prompt = op.singleChoiceTemplate(questionContent, choices, referenceMaterials=self.referenceMaterials)
+                answer = op.generateAnswer(prompt)
             elif questionType == 2:
                 # 多选题
                 prompt = op.multipleChoiceTemplate(questionContent, choices, referenceMaterials=self.referenceMaterials)
+                answer = op.generateAnswer(prompt)
             elif questionType == 14:
                 # 判断题
                 prompt = op.judgementTemplate(questionContent, choices, referenceMaterials=self.referenceMaterials)
+                answer = op.generateAnswer(prompt)
             else:
                 raise ValueError(f"Unsupported question type: {questionType}")
-            answer = op.generateAnswer(prompt)
+
             return answer, "AI generated"
         except Exception as e:
-            # 随机生成答案
-            if questionType == 1:
+            # AI生成失败，随机/兜底答案
+            logger.error(f"fill blank AI failed, using placeholder: {e}")
+            if questionType == 3:
+                answer = ["未知"]
+            elif questionType == 1:
                 answer = self.select_random_answers(choices, 1)
             elif questionType == 2:
                 answer = self.select_random_answers(choices, 2)
+            else:
+                answer = []
 
             time.sleep(randint(3, 5))
 
@@ -1879,7 +1912,8 @@ class ExamCtx:
         # 返回选中选项的 id
         return [choice['id'] for choice in selected_choices]
 
-    def startFuck(self, referenceMaterials: list = [dict(name="参考资料", url="https://www.zhihuishu.com/course/10]", content=str)]) -> tuple[bool, int, int]:
+    def startFuck(self, referenceMaterials: list = [
+        dict(name="参考资料", url="https://www.zhihuishu.com/course/10]", content=str)]) -> tuple[bool, int, int]:
         self.referenceMaterials = referenceMaterials
 
         # 加载答案缓存
@@ -1896,7 +1930,7 @@ class ExamCtx:
         # 遍历试卷内容，获取每道题目的答案
         index = 0
         total_questions = len(sheetContent)
-        if self.progress_view :
+        if self.progress_view:
             progressBar(index, total_questions, "fucking exam",
                         suffix=f"{index}/{total_questions}")
         for questionDict in sheetContent:
@@ -1911,8 +1945,11 @@ class ExamCtx:
 
             # 获取题目答案
             questionContentDict.version = questionDict.get("version", 1)
-            answer, note = self.getQuestionAnswer(questionContentDict)
-
+            try:
+                answer, note = self.getQuestionAnswer(questionContentDict)
+            except Exception as e:
+                logger.error(f"getQuestionAnswer failed: {e}")
+                raise e
             if answer is None:
                 logger.error(
                     f"getQuestionAnswer failed: {questionDict['questionId']}")
@@ -1921,7 +1958,7 @@ class ExamCtx:
             # 保存答案
             self.saveAnswer(questionDict["questionId"], answer)
 
-            if self.progress_view :
+            if self.progress_view:
                 action = f"fucking exam"
                 index += 1
                 progressBar(index, total_questions, action,
@@ -1958,13 +1995,30 @@ class ExamCtx:
                 logger.error(
                     f"Question {questionDict['questionId']} is not correct")
 
-            # 获取题目答案
-            answer = [{"id": option["id"], "content": option["content"]}
-                      for option in questionContentDict["optionVos"]
-                      if option.get("isCorrect", 0) == 1]
-            answer_str = '#@#'.join([str(option["id"]) for option in answer])
-            answer_content_str = '\n'.join(
-                [option["content"] for option in answer])
+            # 获取题目答案（区分填空题和选择题）
+            questionType = questionContentDict.get("questionType", 1)
+
+            if questionType == 3:
+                # 填空题：从optionVos中获取正确答案文本
+                optionVos = questionContentDict.get("optionVos", [])
+                if optionVos:
+                    answer_str = '#@#'.join(
+                        [option.get("content", "") for option in optionVos if option.get("isCorrect", 0) == 1])
+                    answer_content_str = '\n'.join(
+                        [option.get("content", "") for option in optionVos if option.get("isCorrect", 0) == 1])
+                else:
+                    # 没有optionVos时，从userAnswerVo获取
+                    correct_answers = [r.get("answer", "") for r in result if r.get("isCorrect", 0) == 1]
+                    answer_str = '#@#'.join(correct_answers)
+                    answer_content_str = '\n'.join(correct_answers)
+            else:
+                # 选择题/判断题：从optionVos中获取正确选项ID
+                answer = [{"id": option["id"], "content": option["content"]}
+                          for option in questionContentDict.get("optionVos", [])
+                          if option.get("isCorrect", 0) == 1]
+                answer_str = '#@#'.join([str(option["id"]) for option in answer])
+                answer_content_str = '\n'.join(
+                    [option["content"] for option in answer])
 
             # 保存答案
             answer_dict = {
@@ -1985,8 +2039,10 @@ class ExamCtx:
                 f"Exam {self.examTestId} is not finished, score: {correct_questions}/{total_questions}")
             return False, correct_questions, total_questions
 
+
 class Openai:
-    def __init__(self, baseUrl: str = "", apiKey: str = "", modelName: str = "", useZhidao: bool = False, zhiDaosession: requests.Session = None, stream: bool = False, extra: dict = {}):
+    def __init__(self, baseUrl: str = "", apiKey: str = "", modelName: str = "", useZhidao: bool = False,
+                 zhiDaosession: requests.Session = None, stream: bool = False, extra: dict = {}):
         self.baseUrl = baseUrl
         self.apiKey = apiKey
         self.modelName = modelName
@@ -1996,6 +2052,9 @@ class Openai:
 
         self.session = zhiDaosession if zhiDaosession is not None else requests.Session()
         self.useZhidao = useZhidao
+
+        if not useZhidao:
+            self.client = OpenAI(api_key=apiKey, base_url=baseUrl)
 
         self.encoder = tiktoken.encoding_for_model("gpt-4")
 
@@ -2022,32 +2081,29 @@ class Openai:
             except json.JSONDecodeError:
                 continue
 
-    def openaiCompletion(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3, retry_delay: float = 1.0) -> str:
-        url = f"{self.baseUrl}/v1/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.apiKey}",
-        }
-
-        body = {
-            "messages": [{"role": "user", "content": prompt}],
-            "model": self.modelName,
-            "stream": self.stream,
-        }
-
+    def openaiCompletion(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3,
+                         retry_delay: float = 1.0) -> str:
         for attempt in range(max_retries):
             try:
-                response = requests.post(
-                    url, headers=headers, json=body, timeout=30, stream=self.stream)
-                response.raise_for_status()
-
+                response = self.client.chat.completions.create(
+                    model=self.modelName,
+                    messages=[{"role": "user", "content": prompt}],
+                    stream=self.stream,
+                )
                 if self.stream:
-                    result = self.__parseStream(response, aimStart, aimEnd)
+                    cache = ""
+                    for chunk in response:
+                        content = chunk.choices[0].delta.content or ""
+                        if content:
+                            cache += content
+                            match = re.search(
+                                f"{re.escape(aimStart)}(.*?){re.escape(aimEnd)}", cache, re.DOTALL)
+                            if match:
+                                return cache
+                    return cache
                 else:
-                    result = response.json()
-
-                return result["choices"][0]["message"]["content"] if isinstance(result, dict) else result
-            except requests.exceptions.RequestException as e:
+                    return response.choices[0].message.content
+            except Exception as e:
                 logger.error(
                     f"Completion attempt {attempt + 1} failed: {str(e)}")
                 if attempt < max_retries - 1:
@@ -2057,10 +2113,10 @@ class Openai:
                         "All completion attempts failed, giving up...")
                     raise
 
-        # This line should never be reached, but it's here for completeness
         raise Exception("Unexpected error in completion method")
 
-    def zhiDaoCompletion(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3, retry_delay: float = 1.0) -> str:
+    def zhiDaoCompletion(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3,
+                         retry_delay: float = 1.0) -> str:
         base_url = "https://ai-knowledge-map-platform.zhihuishu.com/knowledgemap/gateway/t/qa/platform/stream"
 
         body = {
@@ -2149,7 +2205,8 @@ class Openai:
             reserenceMaterial = ""
         else:
             reserenceMaterial = "参考资料：\n".join(
-                [f"```{material.get('name', '')}\n{material.get('content', '')}\n```" for material in referenceMaterials])
+                [f"```{material.get('name', '')}\n{material.get('content', '')}\n```" for material in
+                 referenceMaterials])
 
         aiBackground = f"假设你是一名学生，正在学习《{self.extra.get('courseName', '未知课程')}》。需要严格按照考试要求完成一道题目，否则无法及格。\n"
         theme = f"现在，你学习到了{self.extra.get('theme', '未知主题')}。\n" if "theme" in self.extra else ""
@@ -2174,6 +2231,60 @@ class Openai:
 
     def judgementTemplate(self, question, choices, referenceMaterials: list = []) -> str:
         return self._baseTemplate(question, choices, referenceMaterials, "判断题")
+
+    def fillBlankTemplate(self, question, referenceMaterials: list = []) -> str:
+        """填空题prompt模板"""
+        if len(referenceMaterials) == 0:
+            reserenceMaterial = ""
+        else:
+            reserenceMaterial = "参考资料：\n".join(
+                [f"```{material.get('name', '')}\n{material.get('content', '')}\n```" for material in
+                 referenceMaterials])
+
+        aiBackground = f"假设你是一名学生，正在学习《{self.extra.get('courseName', '未知课程')}》。\n"
+        theme = f"现在，你学习到了{self.extra.get('theme', '未知主题')}。\n" if "theme" in self.extra else ""
+        knowledgePoint = f"本次考察知识点为{self.extra.get('knowledgePoint', '未知知识点')}。\n" if "knowledgePoint" in self.extra else ""
+
+        answerRequirment = """本题为填空题，请根据题目内容填写空白处的答案。如果有多个空，每个空的答案用换行分隔。回答放到markdown代码块中，例如：
+
+```answer
+第一个空的答案
+第二个空的答案
+```
+
+请只填写空白处应该填入的内容，不要重复题目。答案必须简洁准确，通常是词组或短句。在这个markdown代码块（answer）外，你需要解释为什么你认为这个答案是正确的。
+"""
+        questionContent = f"现在，请听题：\n\n{question}\n\n"
+        return reserenceMaterial + aiBackground + theme + knowledgePoint + answerRequirment + questionContent
+
+    def generateFillBlankAnswer(self, prompt: str) -> list:
+        """生成填空题答案，返回纯文本列表"""
+        tokens = self.encoder.encode(prompt)
+
+        if len(tokens) > 27900:
+            tokens = tokens[-27900:]
+            prompt = self.encoder.decode(tokens)
+            logger.warning(f"Prompt is too long, truncated to {len(tokens)} tokens")
+
+        if self.useZhidao:
+            aicompletion = self.zhiDaoCompletion(prompt)
+        else:
+            aicompletion = self.openaiCompletion(prompt)
+
+        # 寻找```answer \n ... \n```块
+        answer_block = re.search(
+            r"```answer\n(.*?)\n```", aicompletion, re.DOTALL)
+        if answer_block is None:
+            raise ValueError("Answer block not found in completion")
+
+        answer_str = answer_block.group(1).strip()
+        # 按换行分割多个空的答案
+        answers = [line.strip() for line in answer_str.split('\n') if line.strip()]
+
+        if not answers:
+            raise ValueError(f"No valid fill-blank answers found: {answer_str}")
+
+        return answers
 
     def generateAnswer(self, prompt: str) -> list:
         tokens = self.encoder.encode(prompt)
@@ -2221,9 +2332,11 @@ class Openai:
 
         return answers
 
+
 class PptToTxt:
-    def __init__(self, moonShotKey,baseUrl="https://api.moonshot.cn/v1", max_file_size_mb=100, max_cache_files=500, max_cache_size_gb=8, delete_immediately=False):
-        self.__moonShotKey = moonShotKey 
+    def __init__(self, moonShotKey, baseUrl="https://api.moonshot.cn/v1", max_file_size_mb=100, max_cache_files=500,
+                 max_cache_size_gb=8, delete_immediately=False):
+        self.__moonShotKey = moonShotKey
         self.__session = requests.Session()
         self.__download_path = getRealPath("AiDownloadCache")
         self.__client = OpenAI(
@@ -2233,7 +2346,7 @@ class PptToTxt:
         self.__max_file_size = max_file_size_mb * 1024 * 1024  # Convert to bytes
         self.__max_cache_files = max_cache_files
         self.__max_cache_size = max_cache_size_gb * \
-            1024 * 1024 * 1024  # Convert to bytes
+                                1024 * 1024 * 1024  # Convert to bytes
         self.__delete_immediately = delete_immediately
         self.__file_cache = {}
         self.__initialize_cache()
