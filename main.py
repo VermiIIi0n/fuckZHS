@@ -95,7 +95,7 @@ parser.add_argument("-s", "--speed", type=float,
 parser.add_argument("-t", "--threshold", type=float,
                     help="Video End Threshold, above this will be considered finished, overloaded when there are questions left unanswered")
 parser.add_argument("-l", "--limit", type=int, default=0,
-                    help="Time Limit (in minutes, 0 for no limit), default is 0")
+                    help="Daily time Limit (in minutes, 0 for no limit), shared across courses, default is 0")
 parser.add_argument("-q", "--qrlogin", action="store_true",
                     help="Use QR Login")
 parser.add_argument("-d", "--debug", action="store_true", help="Debug Mode")

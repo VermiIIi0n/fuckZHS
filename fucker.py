@@ -23,6 +23,7 @@ import time
 import json
 import re
 import os
+import atexit
 from urllib.parse import urlparse
 from urllib.parse import urlencode, parse_qsl, urlsplit, urlunsplit
 from pathlib import Path
@@ -74,7 +75,7 @@ class Fucker:
         * `cookies`: dict, optional, cookies to use for the session
         * `headers`: dict, optional, headers to use for the session
         * `proxies`: dict, optional, proxies to use for the session
-        * `limit`: int, optional, time limit for each course, in minutes (default is 0), auto resets on fuck*Course methods call
+        * `limit`: int, optional, daily time limit in minutes, shared across all courses and persisted per day (default is 0, no limit)
         * `speed`: float, optional, video playback speed
         * `end_thre`: float, optional, threshold to stop the fucker, overloaded when there are questions left unanswered
         * `tree_view` :bool, optional, print the tree progress view of the course
@@ -104,7 +105,10 @@ class Fucker:
         logger.debug(f'proxies: {self.proxies}')
         logger.debug(f'headers: {self.headers}')
 
-        self.limit = abs(limit)                    # time limit for fucking, in minutes
+        self.limit = abs(limit)                    # daily time limit for fucking, in minutes, shared across courses
+        self._daily_file = getRealPath("./daily_limit.json")
+        self._daily_time = self._loadDailyTime()   # seconds already fucked today, persisted across runs
+        atexit.register(self._saveDailyTime)
         self.speed = speed and max(speed, 0.1)     # video play speed, Falsy values for default
         self.end_thre = max(end_thre or 0, 0.0) or 0.91 # video play end threshold, above this will be considered as finished
         self.prefix = "  |"                        # prefix for tree view
@@ -1103,8 +1107,34 @@ class Fucker:
             raise e
 
     def _checkTimeLimit(self, cid):
-        if self.limit and self.context[cid].fucked_time >= self.limit*60:
-            raise TimeLimitExceeded(f"{self.limit} minutes")
+        if self.limit and self._daily_time + self._runTime() >= self.limit*60:
+            raise TimeLimitExceeded(f"daily limit: {self.limit} minutes")
+
+    def _runTime(self):
+        """total seconds fucked in this run, across all courses"""
+        return sum((c.fucked_time or 0) for c in self.context.values())
+
+    def _loadDailyTime(self):
+        """load seconds already fucked today, so re-runs share the same daily budget"""
+        try:
+            with open(self._daily_file, "r") as f:
+                d = json.load(f)
+            if d.get("date") == datetime.now().strftime("%Y-%m-%d"):
+                return int(d.get("seconds", 0))
+        except Exception:
+            pass
+        return 0
+
+    def _saveDailyTime(self):
+        """persist today's fucked seconds"""
+        if not self.limit:
+            return
+        try:
+            with open(self._daily_file, "w") as f:
+                json.dump({"date": datetime.now().strftime("%Y-%m-%d"),
+                           "seconds": self._daily_time + self._runTime()}, f)
+        except Exception as e:
+            logger.warning(f"failed to save daily time: {e}")
 
     def _sessionReady(self, ctx:dict=None):
         ctx = ObjDict(ctx or {}, recursive=False, default=False)
