@@ -115,6 +115,9 @@ class Fucker:
         self.tree_view = tree_view
         self.progressbar_view = progressbar_view
         self.image_path = image_path
+        self.captcha_hit = False  # set True when the server demands a captcha
+        self.break_every = 45 * 60  # take a long break every N seconds of watching
+        self.active_time = 0    # real seconds watched since last long break
 
     @property # cannot directly manipulate _cookies property, we need to parse uuid from cookies
     def cookies(self) -> RequestsCookieJar:
@@ -468,6 +471,7 @@ class Fucker:
                             tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
                             return
                         except CaptchaException:
+                            self.captcha_hit = True
                             logger.info("Captcha required")
                             self._pushplus("fuckZHS","需要提供验证码")
                             self._bark("fuckZHS","需要提供验证码")
@@ -541,8 +545,15 @@ class Fucker:
             time.sleep(1)
             ctx.fucked_time += 1 # for time limit check
             elapsed_time += 1
+            self.active_time += 1
+            if self.active_time >= self.break_every: # long break, look more like a human
+                self.active_time = 0
+                rest = randint(3, 10) * 60
+                logger.info(f"Taking a break for {rest//60} minutes")
+                print(f"\n*resting for {rest//60} minutes to avoid the captcha...\n")
+                time.sleep(rest)
             played_time = min(played_time+speed, end_time) # update video time and make sure not exceeding end_time
-            pause = pause or int(random() < 0.0025)*60 # randomly pause a minute, may avoid detection
+            pause = pause or int(random() < 0.008)*60 # randomly pause a minute, may avoid detection
             report = report or pause == 60  # report on pause
 
             ### events

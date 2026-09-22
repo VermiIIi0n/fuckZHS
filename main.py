@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import time
 import argparse
 import requests
 import platform
@@ -303,7 +304,24 @@ if not course and os.path.isfile(exec_list):
 
 # still not found?
 if not course:
-    fucker.fuckWhatever()
+    # keep going through captcha walls instead of giving up
+    max_attempts = 8
+    cooldown = 10 * 60   # first wait 10 minutes, then back off up to 1 hour
+    attempts = 0
+    while True:
+        fucker.captcha_hit = False
+        fucker.context = ObjDict(default=None)  # drop stale context, avoids "study time decreased"
+        fucker.fuckWhatever()
+        attempts += 1
+        if not fucker.captcha_hit:
+            break
+        if attempts >= max_attempts:
+            print(f"*Captcha keeps coming back, giving up after {max_attempts} attempts")
+            break
+        wait = min(cooldown, 60 * 60)
+        print(f"*Captcha required, sleeping {wait//60} min then retrying (attempt {attempts}/{max_attempts})...")
+        time.sleep(wait)
+        cooldown = min(cooldown * 2, 60 * 60)
     exit(0)
 
 # auto detect mode
