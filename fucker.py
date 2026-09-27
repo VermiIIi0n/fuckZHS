@@ -311,13 +311,22 @@ class Fucker:
             except Exception as e:
                 logger.exception(e)
                 continue
+        polymas_ids = [c.courseId for c in self.getPolymasList()]
+        for i in polymas_ids:
+            try:
+                self.fuckPolymasCourse(i)
+            except Exception as e:
+                logger.exception(e)
+                continue
 
     def fuckCourse(self, course_id:str):
         """
         ### Fuck the whole course
-        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
+        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao), or `polymas:courseId`(Polymas AI course)
         """
-        if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
+        if course_id.startswith("polymas:"):
+            self.fuckPolymasCourse(course_id.split(":", 1)[1])
+        elif re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
             self.fuckZhidaoCourse(course_id) # it's a recruitAndCourseId
         else: # it's a courseId
             self.fuckHikeCourse(course_id)
@@ -325,10 +334,12 @@ class Fucker:
     def fuckVideo(self, course_id, video_id:str):
         """
         ### Fuck a single video
-        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
-        * `video_id`: `fileId`(Hike) or `videoId`(Zhidao, not visible in URL)
+        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao), or `polymas:courseId`(Polymas AI course)
+        * `video_id`: `fileId`(Hike) or `videoId`(Zhidao, not visible in URL) or `resourceId`(Polymas, nodeId in resource tree)
         """
-        if re.match(r".*[a-zA-Z].*", course_id):
+        if course_id.startswith("polymas:"):
+            self.fuckPolymasVideo(course_id.split(":", 1)[1], video_id)
+        elif re.match(r".*[a-zA-Z].*", course_id):
             self.fuckZhidaoVideo(course_id, video_id)
         else:
             self.fuckHikeVideo(course_id, video_id)
@@ -1040,6 +1051,278 @@ class Fucker:
         return rt
 
 # end of hike methods
+#######################################
+# following are methods for cloudapi.polymas.com API (hikeAiCourse, a.k.a. AI智课)
+    POLYMAS_API = "https://cloudapi.polymas.com"
+    POLYMAS_ORIGIN = "https://hike-teaching-center.polymas.com"
+
+    def _polymasToken(self):
+        """the zhihuishu jt-cas JWT is accepted as Authorization by cloudapi.polymas.com"""
+        token = self.cookies.get("jt-cas") or self.cookies.get("ai-poly")
+        if not token:
+            raise ValueError("Cookies invalid: missing jt-cas")
+        return token
+
+    def polymasQuery(self, url: str, data: dict = None, method: str = "POST", ok_code: int = 200):
+        """set ok_code to None for no check"""
+        self._checkCookies()
+        self.session.cookies = self.cookies.copy()
+        self.session.headers = self.headers.copy()
+        self.session.headers.update({
+            "Accept": "application/json, text/plain, */*",
+            "Authorization": self._polymasToken(),
+            "Origin": self.POLYMAS_ORIGIN,
+            "Referer": f"{self.POLYMAS_ORIGIN}/",
+        })
+        self.session.proxies = self.proxies.copy()
+        if method == "POST":
+            r = self.session.post(url, json=data or {}, proxies=self.proxies, timeout=10)
+        else:
+            r = self.session.get(url, params=data, proxies=self.proxies, timeout=10)
+        ret = ObjDict(r.json())
+        logger.debug(f"{method} {url}\ndata: {json.dumps(data, ensure_ascii=False)}\n" +
+                     f"response: {json.dumps(ret, ensure_ascii=False)[:2000]}")
+        if ok_code is not None and ret.code != ok_code:
+            ret.default = None
+            e = Exception(f"code: {ret.code} " +
+                          f"msg: {ret.msg or json.dumps(ret, indent=4, ensure_ascii=False)}")
+            logger.error(e)
+            raise e
+        return ret
+
+    def _polymasSchoolNid(self):
+        if self.context.get("_polymas_school_nid"):
+            return self.context["_polymas_school_nid"]
+        url = f"{self.POLYMAS_API}/user/user/v2/get-current-user-detail"
+        r = self.polymasQuery(url, {}).data
+        r.default = None
+        nid = (r.schoolInfo or ObjDict(default=None)).nid or r.schoolCertificationNid
+        if not nid:
+            raise ValueError("Failed to get polymas school nid")
+        self.context["_polymas_school_nid"] = nid
+        return nid
+
+    def getPolymasList(self):
+        """
+        ### Get all AI courses (hikeAiCourse) from polymas
+        """
+        if self.courses.polymas:
+            return self.courses.polymas
+        url = f"{self.POLYMAS_API}/student-course/student/index/queryStudentCourse"
+        school_nid = self._polymasSchoolNid()
+        page, size = 1, 16
+        data = {"keyword": "", "term": "", "schoolId": school_nid,
+                "status": 2, "page": page, "size": size}
+        r = self.polymasQuery(url, data).data
+        r.default = None
+        self.courses.polymas = r.list or []
+        total = int(r.total or 0)
+        for page in range(2, int(math.ceil(total/size))+1):
+            data["page"] = page
+            r = self.polymasQuery(url, data).data
+            self.courses.polymas += r.list or []
+        return self.courses.polymas
+
+    def getPolymasContext(self, course_id: str, term: int = None, force: bool = False):
+        """
+        ### fetch context for a polymas AI course
+        * `course_id`: polymas `courseId`
+        * `term`: term id, auto detected from course list when omitted
+        """
+        ctx_key = f"polymas:{course_id}"
+        if ctx_key in self.context and not force:
+            return self.context[ctx_key]
+        self._checkCookies()
+        logger.info(f"Getting context for polymas course {course_id}")
+
+        # figure out term and classId
+        course = None
+        for c in self.getPolymasList():
+            if c.courseId == course_id:
+                course = c
+                break
+        if term is None:
+            term = course and (course.terms or [None])[0]
+        if term is None:
+            raise ValueError(f"term of course {course_id} not found")
+        term = int(term)
+        class_id = None
+        if course and course.studentClasses:
+            class_id = course.studentClasses[0].classId
+        if not class_id:
+            classes = self.polymasQuery(
+                f"{self.POLYMAS_API}/student-course/student/classList",
+                {"courseId": course_id, "term": term}).data
+            class_id = classes and classes[0].classId
+        if not class_id:
+            raise ValueError(f"classId of course {course_id} not found")
+
+        # get study library id
+        library_id = self.polymasQuery(
+            f"{self.POLYMAS_API}/teacher-course/library/course/findStudyLibraryByCourseId",
+            {"courseId": course_id, "term": term}, method="GET").data
+
+        # get resource tree, collect video files
+        tree = self.polymasQuery(
+            f"{self.POLYMAS_API}/student-course/study/student/resource/queryTree",
+            {"libraryFolderId": library_id, "classId": class_id,
+             "courseId": course_id, "term": term}).data
+        videos = ObjDict()
+
+        def walk(node, chapter=""):
+            node.default = None
+            detail = node.detail or ObjDict(default=None)
+            if detail.classify == "folder":
+                chapter = detail.title or chapter
+            if detail.classify == "file":
+                ext = ObjDict(json.loads(detail.ext or "{}"), default=None)
+                videos[node.nodeId] = ObjDict({
+                    "resourceId": node.nodeId,
+                    "name": detail.title,
+                    "chapter": chapter,
+                    "ossUrl": ext.ossUrl,
+                    "duration": float(ext.duration or 0),
+                    "isFinished": bool(node.isFinished),
+                    "isRequire": bool(node.isRequire),
+                    "completePercentage": float(node.completePercentage or 0),
+                }, default=None)
+            for child in node.children or []:
+                walk(ObjDict(child, default=None), chapter)
+
+        for node in tree or []:
+            walk(node)
+        logger.info(f"{len(videos)} resources in course {course_id}")
+
+        ctx = ObjDict({
+            "courseId": course_id,
+            "course": course,
+            "term": term,
+            "classId": class_id,
+            "libraryFolderId": library_id,
+            "videos": videos,
+            "fucked_time": 0
+        }, default={})
+        self.context[ctx_key] = ctx
+        return ctx
+
+    def getPolymasResourceDetail(self, ctx, resource_id: str):
+        url = f"{self.POLYMAS_API}/student-course/study/student/resource/detail"
+        return self.polymasQuery(url, {
+            "courseId": ctx.courseId,
+            "libraryFolderId": ctx.libraryFolderId,
+            "resourceId": resource_id,
+            "term": ctx.term,
+        }).data
+
+    def savePolymasStudyRecord(self, ctx, resource_id: str, start_time: float, end_time: float, start_date: str):
+        """### report video progress for polymas AI course"""
+        url = f"{self.POLYMAS_API}/student-course/study/student/record/report"
+        data = {
+            "startWatchTime": int(start_time),
+            "endWatchTime": int(end_time),
+            "startDate": start_date,
+            "endDate": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "studyTotalTime": int(end_time - start_time),
+            "courseId": ctx.courseId,
+            "resourceId": resource_id,
+            "clientType": "Windows",
+            "term": ctx.term,
+        }
+        rt = self.polymasQuery(url, data).data
+        if rt is None:
+            raise Exception("Failed to save study record")
+        return rt
+
+    def fuckPolymasCourse(self, course_id: str, term: int = None):
+        """
+        * `course_id`: polymas `courseId`
+        """
+        tprint = print if self.tree_view else lambda *a, **k: None
+        logger.info(f"Fucking Polymas course {course_id}")
+        ctx = self.getPolymasContext(course_id, term)
+        name = ctx.course and ctx.course.courseName or course_id
+        tprint(f"Fucking Polymas course: {name}")
+        begin_time = time.time()
+        prefix = self.prefix
+        try:
+            w_lim = os.get_terminal_size().columns-1
+        except Exception:
+            w_lim = 80
+        try:
+            for video in ctx.videos.values():
+                tprint(f"{prefix*2}__Fucking video {video.name}"[:w_lim])
+                try:
+                    self.fuckPolymasVideo(course_id, video.resourceId)
+                except TimeLimitExceeded as e:
+                    logger.info(f"Fucking time limit exceeded: {e}")
+                    self._pushplus("fuckZHS", "刷课已完成")
+                    self._bark("fuckZHS", "刷课已完成")
+                    tprint(prefix)
+                    tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
+                    return
+                except Exception as e:
+                    logger.exception(e)
+                    self._pushplus("fuckZHS", e)
+                    self._bark("fuckZHS", e)
+                    tprint(f"{prefix*2}##Failed: {e}"[:w_lim])
+        except KeyboardInterrupt:
+            logger.info("User interrupted")
+        wipeLine()
+        tprint(prefix)
+        tprint(f"\r{prefix}__Fucked course {name}, cost {time.time()-begin_time:.2f}s\n")
+
+    def fuckPolymasVideo(self, course_id: str, resource_id: str, term: int = None):
+        """
+        * `course_id`: polymas `courseId`
+        * `resource_id`: `nodeId`/`bizId` of the resource in the study library tree
+        """
+        self._checkCookies()
+        ctx = self.getPolymasContext(course_id, term)
+        self._checkTimeLimit(f"polymas:{course_id}")
+        video = ctx.videos[resource_id]
+        if not video:
+            raise ValueError(f"Resource {resource_id} not found")
+
+        # refresh progress from server
+        detail = self.getPolymasResourceDetail(ctx, resource_id)
+        detail.default = None
+        duration = float(detail.duration or video.duration)
+        played_time = float(detail.endWatchTime or video.completePercentage/100*duration)
+        if detail.isFinished and self.end_thre <= 1.0:
+            logger.info(f"Video {video.name} already watched")
+            return
+        end_time = max(duration * self.end_thre, 1.0)
+        if played_time >= end_time and self.end_thre <= 1.0:
+            logger.info(f"Video {video.name} already beyond threshold")
+            return
+
+        # emulating video playing
+        speed = self.speed or 1.5
+        interval = 30       # site reports about every 30s of watch time
+        last_submit = played_time
+        segment_start = datetime.now()
+        elapsed = 0
+        watch_to = min(end_time, duration)
+        while played_time < watch_to:
+            time.sleep(1)
+            ctx.fucked_time += 1
+            elapsed += 1
+            played_time = min(played_time+speed, watch_to)
+            if (elapsed % interval == 0 or played_time >= watch_to) \
+                    and int(played_time) > int(last_submit):
+                rt = self.savePolymasStudyRecord(ctx, resource_id,
+                                                 last_submit, played_time,
+                                                 segment_start.strftime("%Y-%m-%d %H:%M:%S"))
+                last_submit = played_time
+                segment_start = datetime.now()
+                if rt.completeRate is not None:
+                    video.completePercentage = float(rt.completeRate)
+            progressBar(played_time, watch_to,
+                        prefix=f"fucking {resource_id}", suffix="done",
+                        progressbar_view=self.progressbar_view)
+        time.sleep(random()+1) # old Joe needs more sleep
+
+# end of polymas methods
 #######################################
 # shared methods
     def watchVideo(self, video_id): # it's probably unnecessary but let's keep it to fool those idiots

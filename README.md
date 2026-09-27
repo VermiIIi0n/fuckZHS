@@ -172,7 +172,7 @@ python main.py -ai 114514 4444
 ```
 
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
- _\*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数_  
+ _\*课程 ID 为网址中的 `courseId`(校内学分课) 或 `recruitAndCourseId`(共享学分课) 参数; 2026 年改版后的 AI 智课(hikeAiCourse)请使用 `polymas:courseId` 格式, 或直接用 `-f` 拉清单_  
  _\*\*更多选项请使用 `-h` 查看._
 
 ### 拉清单
@@ -203,8 +203,8 @@ python main.py --fetch
 
 ### 命令行参数列表
 
-- `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId`, 可输入多个
-- `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId`, 可输入多个
+- `-c`, `--course`: 课程 ID, `courseId` 或 `recruitAndCourseId` 或 `polymas:courseId`(AI 智课), 可输入多个
+- `-v`, `--videos`: 视频 ID, `fileId` 或 `videoId` 或 `resourceId`(AI 智课), 可输入多个
 - `-u`, `--username`: 账号
 - `-p`, `--password`: 密码
 - `-q`, `--qrlogin`: 二维码登录，目前**强制开启**

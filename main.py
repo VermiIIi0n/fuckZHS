@@ -284,12 +284,18 @@ if args.aicourse:
 exec_list = getRealPath("execution.json")
 # fetch course list
 if args.fetch:
+    courses = []
+    with suppress(Exception):
+        courses += [{"name": c.courseName, "id": c.secret}
+                    for c in fucker.getZhidaoList()]
+    with suppress(Exception):
+        courses += [{"name": c.courseName, "id": str(c.courseId)}
+                    for c in fucker.getHikeList()]
+    with suppress(Exception):
+        courses += [{"name": c.courseName, "id": f"polymas:{c.courseId}"}
+                    for c in fucker.getPolymasList()]
     with open(exec_list, "w") as f:
-        zhidao_ids = [{"name": c.courseName, "id": c.secret}
-                      for c in fucker.getZhidaoList()]
-        hike_ids = [{"name": c.courseName, "id": str(
-            c.courseId)} for c in fucker.getHikeList()]
-        json.dump(zhidao_ids + hike_ids, f, indent=4, ensure_ascii=False)
+        json.dump(courses, f, indent=4, ensure_ascii=False)
     exit(0)
 
 # get courses from file if not specified
