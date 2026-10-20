@@ -2,10 +2,23 @@
 # -*- coding: utf-8 -*-
 import io
 import os
+import re
 import sys
 from requests.cookies import RequestsCookieJar, create_cookie
 from PIL import Image, ImageOps
 from datetime import timedelta
+
+
+def parse_bool(value):
+    """Parse a human-readable boolean for command-line options."""
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError(f"expected a boolean, got {value!r}")
 
 
 def HMS(*args, **kw):
@@ -78,13 +91,35 @@ def getRealPath(path: str):
     return os.path.realpath(path)
 
 def versionCmp(v1:str, v2:str) -> int:
-    v1 = v1.split('.')
-    v2 = v2.split('.')
-    for i1, i2 in zip(v1, v2):
-        dt = int(i1) - int(i2)
-        if dt:
-            return dt
-    return len(v1) - len(v2)
+    """Compare dotted numeric versions without raising on a leading ``v``.
+
+    The updater only needs ordering for release versions, but malformed or
+    user-edited metadata should not terminate the application. Non-numeric
+    components are compared lexically after their numeric prefix.
+    """
+    def parts(value):
+        value = str(value).strip()
+        if value.lower().startswith("v"):
+            value = value[1:]
+        result = []
+        for component in value.split('.'):
+            match = re.match(r"^(\d+)(.*)$", component)
+            if match:
+                result.append((0, int(match.group(1))))
+                suffix = match.group(2)
+                if suffix:
+                    result.append((1, suffix))
+            else:
+                result.append((1, component))
+        return result
+
+    left, right = parts(v1), parts(v2)
+    for lpart, rpart in zip(left, right):
+        if lpart != rpart:
+            return -1 if lpart < rpart else 1
+    if len(left) == len(right):
+        return 0
+    return -1 if len(left) < len(right) else 1
 
 def wipeLine():
     try:
@@ -107,11 +142,15 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     """
     if not progressbar_view:
         return False
+    if total <= 0:
+        wipeLine()
+        return False
     if not length:
         try:
             length = os.get_terminal_size().columns - 4
         except OSError:  # Fix for PyCharm in Windows
             length = 76
+    iteration = max(0, min(iteration, total))
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     prefix = f"{prefix} |"
     suffix = f"| {percent}% {suffix}"

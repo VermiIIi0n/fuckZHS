@@ -221,6 +221,18 @@ python main.py --fetch
 - `-ai`, `--aicourse`: AI课程, Input AI Course ID and CLASS ID to fu*k aiCourse
 - `-h` `--help`: 显示帮助
 
+布尔选项支持 `true/false`、`yes/no`、`1/0` 和 `on/off`，例如：
+
+```bash
+python main.py --tree_view false --progressbar_view false
+```
+
+AI 课程可用 `--noexam` 跳过自动考试：
+
+```bash
+python main.py -ai <course_id> <class_id> --noexam
+```
+
 运行示例如下:
 ![运行示例](./images/running.png)
 
@@ -231,6 +243,8 @@ python main.py --fetch
 ### `API` 简介
 
 详见源码
+
+新版接口的加密密钥会通过智慧树密钥服务按模块获取，程序会自动缓存并使用返回的 `cKey`；密钥服务暂时不可用时会回退到内置兼容密钥。
 
 #### 实例化 `Fucker`
 

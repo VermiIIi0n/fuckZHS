@@ -10,7 +10,7 @@ from fucker import Fucker
 from logger import logger
 from ObjDict import ObjDict
 from utils import showImage, cookie_jar_to_list
-from utils import getConfigPath, getRealPath, versionCmp
+from utils import getConfigPath, getRealPath, parse_bool, versionCmp
 
 DEFAULT_CONFIG = {
     "username": "",
@@ -54,6 +54,8 @@ DEFAULT_CONFIG = {
         "use_stream": True
     }
 }
+
+
 # get config or create one if not exist
 if os.path.isfile(getConfigPath()):
     with open(getConfigPath(), 'r+', encoding="UTF-8") as f:
@@ -77,8 +79,8 @@ if os.path.isfile(getConfigPath()):
             print("****Config file updated****")
 else:
     config = ObjDict(DEFAULT_CONFIG, default=None)
-    with open(getConfigPath(), 'w') as f:
-        json.dump(config, f, indent=4)
+    with open(getConfigPath(), 'w', encoding="utf-8") as f:
+        json.dump(config, f, indent=4, ensure_ascii=False)
 
 # parse arguments
 parser = argparse.ArgumentParser(prog="ZHS Fucker")
@@ -105,9 +107,9 @@ parser.add_argument("--show_in_terminal",
                     action="store_true", help="Show QR in terminal")
 parser.add_argument("--proxy", type=str,
                     help="Proxy Config, e.g: http://127.0.0.1:8080")
-parser.add_argument("--tree_view", type=bool,
+parser.add_argument("--tree_view", type=parse_bool, default=None,
                     help="print the tree progress view of the course")
-parser.add_argument("--progressbar_view", type=bool,
+parser.add_argument("--progressbar_view", type=parse_bool, default=None,
                     help="print the progressbar view of the course")
 parser.add_argument("--image_path", type=str,
                     help="Image save path, default is empty (do not save)")
@@ -115,7 +117,7 @@ parser.add_argument("-ai", "--aicourse", type=str, nargs=2,
                     metavar=('COURSE_ID', 'CLASS_ID'),
                     help="AI Course ID and CLASS ID to fuck aiCourse")
 
-parser.add_argument("--noexam", type=bool,
+parser.add_argument("--noexam", action="store_true",
                     help="Disable AI exam")
 
 args = parser.parse_args()
@@ -127,8 +129,8 @@ qrlogin = args.qrlogin or config.qrlogin or True  # Force enabled for v2.3.*
 save_cookies = config.save_cookies or False
 qr_extra = config.qr_extra or ObjDict(default=None)
 show_in_terminal = args.show_in_terminal or config.qr_extra.show_in_terminal
-tree_view = args.tree_view or config.tree_view
-progressbar_view = args.progressbar_view or config.progressbar_view
+tree_view = config.tree_view if args.tree_view is None else args.tree_view
+progressbar_view = config.progressbar_view if args.progressbar_view is None else args.progressbar_view
 image_path = args.image_path or config.image_path
 if show_in_terminal is None:
     # Defaults to terminal in Windows
@@ -161,7 +163,7 @@ if args.proxy:  # parse proxy
             exit(1)
 
 # check update
-with open(getRealPath("meta.json"), "r") as f:
+with open(getRealPath("meta.json"), "r", encoding="utf-8") as f:
     try:  # some exceptions won't be caught by 'with'
         m = ObjDict(json.load(f))
         url = f"https://raw.githubusercontent.com/{m.author}/fuckZHS/{m.branch}/meta.json"
@@ -183,7 +185,7 @@ fucker = Fucker(proxies=proxies, speed=args.speed, end_thre=args.threshold, limi
 cookies_path = getRealPath("./cookies.json")
 cookies_loaded = False
 if save_cookies and os.path.exists(cookies_path):
-    with open(cookies_path, 'r') as f:
+    with open(cookies_path, 'r', encoding="utf-8") as f:
         raw = f.read() or '{}'
         cookies = json.loads(raw)
     with suppress(Exception):
@@ -213,7 +215,7 @@ if not cookies_loaded:
             fucker.login(username, password)
         print("Login Successful\n")
         if save_cookies:
-            with open(cookies_path, 'w') as f:
+            with open(cookies_path, 'w', encoding="utf-8") as f:
                 json.dump(cookie_jar_to_list(fucker.cookies), f,
                           indent=2, ensure_ascii=False)
     except Exception as e:
@@ -284,7 +286,7 @@ if args.aicourse:
 exec_list = getRealPath("execution.json")
 # fetch course list
 if args.fetch:
-    with open(exec_list, "w") as f:
+    with open(exec_list, "w", encoding="utf-8") as f:
         zhidao_ids = [{"name": c.courseName, "id": c.secret}
                       for c in fucker.getZhidaoList()]
         hike_ids = [{"name": c.courseName, "id": str(
@@ -294,7 +296,7 @@ if args.fetch:
 
 # get courses from file if not specified
 if not course and os.path.isfile(exec_list):
-    with open(exec_list, "r") as f:
+    with open(exec_list, "r", encoding="utf-8") as f:
         try:
             course = [str(c["id"]) for c in json.load(f)]
         except Exception as e:
