@@ -1,4 +1,7 @@
-from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY, AI_KEY, EXAM_KEY
+from zd_utils import (
+    Cipher, DynamicKeyCache, getEv, WatchPoint,
+    HOME_KEY, VIDEO_KEY, AI_KEY, EXAM_KEY,
+)
 from utils import progressBar, HMS, wipeLine, list_to_cookie_jar, getRealPath
 from urllib.parse import unquote_plus as unquote
 from requests.adapters import HTTPAdapter, Retry
@@ -26,12 +29,18 @@ import os
 from urllib.parse import urlparse
 from urllib.parse import urlencode, parse_qsl, urlsplit, urlunsplit
 from pathlib import Path
-from openai import OpenAI
+try:
+    from openai import OpenAI
+except ImportError:  # AI/PPT features are optional for regular course runs.
+    OpenAI = None
 import threading
 import ast
 import hashlib
 import string
-import tiktoken
+try:
+    import tiktoken
+except ImportError:  # AI answer generation is optional.
+    tiktoken = None
 
 """
 ⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
@@ -100,6 +109,7 @@ class Fucker:
         self.session = requests.Session()
         self.session.mount('http://', HTTPAdapter(max_retries=retry))
         self.session.mount('https://', HTTPAdapter(max_retries=retry))
+        self._dynamic_keys = DynamicKeyCache(self.session, self.proxies)
 
         logger.debug(f'proxies: {self.proxies}')
         logger.debug(f'headers: {self.headers}')
@@ -608,13 +618,24 @@ class Fucker:
         """set ok_code to None for no check"""
         cipher = Cipher(key)
         if setTimeStamp:
-            # somehow their timestamps are ending with 000
-            _t = int(time.time())*1000
+            _t = int(time.time() * 1000)
             data["dateFormate"] = _t
         logger.debug(
             f"{method} url: {url}\nraw_data: {json.dumps(data,indent=4,ensure_ascii=False)}")
-        form = {"secretStr": cipher.encrypt(
-            json.dumps(data))} if encrypt else data
+        if encrypt:
+            key_module = self._dynamic_key_module(url)
+            if key_module is not None:
+                try:
+                    cipher = Cipher(self._dynamic_keys.get(key_module))
+                except Exception as exc:
+                    logger.warning("dynamic key lookup failed for %s: %s; using legacy key", url, exc)
+            form = {
+                "secretStr": cipher.encrypt(
+                    json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+                )
+            }
+        else:
+            form = data
 
         if setTimeStamp:
             form["dateFormate"] = _t
@@ -635,6 +656,30 @@ class Fucker:
             logger.error(e)
             raise e
         return ret
+
+    @staticmethod
+    def _dynamic_key_module(url: str):
+        """Map API hosts to the module id used by the web key service."""
+        modules = {
+            3: ("studentexamtest.zhihuishu.com", "teacherexamtest.zhihuishu.com"),
+            6: (
+                "ai-knowledge-map-platform.zhihuishu.com",
+                "kg-knowledge-graph.zhihuishu.com",
+                "kg-ai-run.zhihuishu.com",
+                "kg-knowledge-course.zhihuishu.com",
+                "kg-run-student.zhihuishu.com",
+            ),
+            11: (
+                "studyservice-api.zhihuishu.com",
+                "kgshare.zhihuishu.com",
+                "aistudy.zhihuishu.com",
+            ),
+            13: ("onlineservice-api.zhihuishu.com",),
+        }
+        return next(
+            (module for module, hosts in modules.items() if any(host in url for host in hosts)),
+            None,
+        )
 
     def gologin(self, RAC_id):
         '''### cross sites login for zhidao course'''
@@ -1521,7 +1566,9 @@ class Fucker:
             f"{prefix}__Fucked Zhidao AI course {knowledgePoints.courseName} in {time.time()-begin_time:.2f}s")
 
 class ExamCtx:
-    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int, progress_view: bool = True, aiConfig: dict = {}, opExtra: dict = {}):
+    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int, progress_view: bool = True, aiConfig: dict = None, opExtra: dict = None):
+        aiConfig = {} if aiConfig is None else aiConfig
+        opExtra = {} if opExtra is None else opExtra
         self.fucker = fucker
         self.courseId = courseId
         self.examTestId = examTestId
@@ -1879,7 +1926,9 @@ class ExamCtx:
         # 返回选中选项的 id
         return [choice['id'] for choice in selected_choices]
 
-    def startFuck(self, referenceMaterials: list = [dict(name="参考资料", url="https://www.zhihuishu.com/course/10]", content=str)]) -> tuple[bool, int, int]:
+    def startFuck(self, referenceMaterials: list = None) -> tuple[bool, int, int]:
+        if referenceMaterials is None:
+            referenceMaterials = [dict(name="参考资料", url="https://www.zhihuishu.com/course/10]", content=str)]
         self.referenceMaterials = referenceMaterials
 
         # 加载答案缓存
@@ -1986,17 +2035,22 @@ class ExamCtx:
             return False, correct_questions, total_questions
 
 class Openai:
-    def __init__(self, baseUrl: str = "", apiKey: str = "", modelName: str = "", useZhidao: bool = False, zhiDaosession: requests.Session = None, stream: bool = False, extra: dict = {}):
+    def __init__(self, baseUrl: str = "", apiKey: str = "", modelName: str = "", useZhidao: bool = False, zhiDaosession: requests.Session = None, stream: bool = False, extra: dict = None):
         self.baseUrl = baseUrl
         self.apiKey = apiKey
         self.modelName = modelName
-        self.extra = extra
+        self.extra = {} if extra is None else extra
 
         self.stream = stream
 
         self.session = zhiDaosession if zhiDaosession is not None else requests.Session()
         self.useZhidao = useZhidao
 
+        if tiktoken is None:
+            raise ImportError(
+                "tiktoken is required for AI answer generation; "
+                "install dependencies from requirements.txt"
+            )
         self.encoder = tiktoken.encoding_for_model("gpt-4")
 
         self.prefix = "8ZflKEagfL"
@@ -2166,13 +2220,16 @@ class Openai:
         choicesContent = f"选项如下：```choices\n{json.dumps(choices, ensure_ascii=False, indent=4)}\n```\n"
         return reserenceMaterial + aiBackground + theme + knowledgePoint + answerRequirment + questionContent + choicesContent
 
-    def singleChoiceTemplate(self, question, choices, referenceMaterials: list = []) -> str:
+    def singleChoiceTemplate(self, question, choices, referenceMaterials: list = None) -> str:
+        referenceMaterials = [] if referenceMaterials is None else referenceMaterials
         return self._baseTemplate(question, choices, referenceMaterials, "单选题")
 
-    def multipleChoiceTemplate(self, question, choices, referenceMaterials: list = []) -> str:
+    def multipleChoiceTemplate(self, question, choices, referenceMaterials: list = None) -> str:
+        referenceMaterials = [] if referenceMaterials is None else referenceMaterials
         return self._baseTemplate(question, choices, referenceMaterials, "多选题")
 
-    def judgementTemplate(self, question, choices, referenceMaterials: list = []) -> str:
+    def judgementTemplate(self, question, choices, referenceMaterials: list = None) -> str:
+        referenceMaterials = [] if referenceMaterials is None else referenceMaterials
         return self._baseTemplate(question, choices, referenceMaterials, "判断题")
 
     def generateAnswer(self, prompt: str) -> list:
@@ -2223,12 +2280,17 @@ class Openai:
 
 class PptToTxt:
     def __init__(self, moonShotKey,baseUrl="https://api.moonshot.cn/v1", max_file_size_mb=100, max_cache_files=500, max_cache_size_gb=8, delete_immediately=False):
+        if OpenAI is None:
+            raise ImportError(
+                "openai is required for PPT processing; "
+                "install dependencies from requirements.txt"
+            )
         self.__moonShotKey = moonShotKey 
         self.__session = requests.Session()
         self.__download_path = getRealPath("AiDownloadCache")
         self.__client = OpenAI(
             api_key=self.__moonShotKey,
-            base_url="https://api.moonshot.cn/v1",
+            base_url=baseUrl,
         )
         self.__max_file_size = max_file_size_mb * 1024 * 1024  # Convert to bytes
         self.__max_cache_files = max_cache_files
