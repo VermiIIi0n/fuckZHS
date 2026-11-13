@@ -18,11 +18,16 @@ class Cipher:
 
     @staticmethod
     def pad(data):
-        return (data+chr(16-len(data)%16)*(16-len(data)%16)).encode()
-    
+        # 必须按字节填充，否则含中文的明文长度与字符数不一致会导致加密结果错误
+        raw = data.encode("utf-8") if isinstance(data, str) else data
+        n = 16 - len(raw) % 16
+        return raw + bytes([n]) * n
+
     @staticmethod
     def unpad(data):
-        data = data.decode()
+        if isinstance(data, bytes):
+            n = data[-1]
+            return data[:-n].decode("utf-8", "replace")
         return data[:-ord(data[-1])]
 
     def encrypt(self, data:str):

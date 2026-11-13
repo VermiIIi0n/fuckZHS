@@ -51,6 +51,21 @@ import tiktoken
 ⣿⣿⣿⣶⣶⣮⣥⣒⠲⢮⣝⡿⣿⣿⡆⣿⡿⠃⠄⠄⠄⠄⠄⠄⠄⣠⣴⣿⣿⣿
 """
 
+SMART_BASE = "https://kg-ai-run.zhihuishu.com/run/gateway/t/stu"   # 智慧课程 API 网关
+SMART_REPORT_INTERVAL = 10  # 智慧课程视频进度上报间隔（秒）
+SMART_DEFAULT_SPEED = 30.0  # 智慧课程视频默认倍速（实测 30x/60x 上报均被接受，取 30x 留余量）
+SMART_MAX_SPEED = 60.0      # 智慧课程视频倍速上限，超过后服务端会丢进度上报
+SMART_EXAM_BASE = "https://studentexamtest.zhihuishu.com/gateway/t/v1"  # 智慧课程练习/考试网关
+
+
+def smartInt(v):
+    """智慧课程接口里的 id 有时是数字有时是字符串，尽量转成 int"""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return v
+
+
 class TimeLimitExceeded(TimeoutError):
     pass
 
@@ -295,6 +310,24 @@ class Fucker:
 #            logger.exception(e)
 #            raise Exception(f"QR login failed: {e}")
 
+    def getSmartCourseListSafe(self):
+        """### 取得智慧课程列表，失败时返回空列表（不影响其它课程类型，且不重复重试）"""
+        if getattr(self, "_smartListBroken", False):
+            return []
+        try:
+            return self.getSmartCourseList() or []
+        except Exception as e:
+            self._smartListBroken = True
+            logger.error(f"Failed to get smart course list: {e}")
+            return []
+
+    def findSmartCourse(self, course_id):
+        """### 按 courseId 在智慧课程列表里找课程"""
+        for c in self.getSmartCourseListSafe():
+            if str(c.get("courseId")) == str(course_id):
+                return c
+        return None
+
     def fuckWhatever(self):
         """Fuck whatever is found"""
         zhidao_ids = [c.secret for c in self.getZhidaoList()]
@@ -311,16 +344,27 @@ class Fucker:
             except Exception as e:
                 logger.exception(e)
                 continue
+        # 智慧课程（新形态课程），courseId/classId 都在课程列表里
+        for c in self.getSmartCourseListSafe():
+            try:
+                self.fuckSmartCourse(c.courseId, c.classId)
+            except Exception as e:
+                logger.exception(e)
+                continue
 
     def fuckCourse(self, course_id:str):
         """
         ### Fuck the whole course
-        * `course_id`: `courseId`(Hike) or `recuitAndCourseId`(Zhidao)
+        * `course_id`: `courseId`(Hike/Smart) or `recuitAndCourseId`(Zhidao)
         """
         if re.match(r".*[a-zA-Z].*", course_id): # determine if it's a courseId or a recruitAndCourseId
             self.fuckZhidaoCourse(course_id) # it's a recruitAndCourseId
         else: # it's a courseId
-            self.fuckHikeCourse(course_id)
+            smart = self.findSmartCourse(course_id)
+            if smart: # it's a smart course
+                self.fuckSmartCourse(smart.courseId, smart.classId)
+            else: # it's a hike courseId
+                self.fuckHikeCourse(course_id)
 
     def fuckVideo(self, course_id, video_id:str):
         """
@@ -1520,8 +1564,564 @@ class Fucker:
         tprint(
             f"{prefix}__Fucked Zhidao AI course {knowledgePoints.courseName} in {time.time()-begin_time:.2f}s")
 
+#############################################
+# following are methods for smart course (智慧课程) API
+# host: kg-ai-run.zhihuishu.com/run/gateway/t/stu
+# web page: ai-smart-course-student-pro.zhihuishu.com/singleCourse/knowledgeStudy/<courseId>/<classId>
+# the API is the same gateway as AI course, use AI_KEY to encrypt the json body
+#############################################
+    def getSmartCourseList(self):
+        """
+        ### 取得智慧课程列表（学生视角）
+        """
+        if self.courses.smart:
+            return self.courses.smart
+        self._checkCookies()
+        self._sessionReady()
+        r = self.zhidaoQuery(
+            SMART_BASE + "/center/course-list-home", {}, ok_code=200, key=AI_KEY, contentType="json")
+        r.default = None
+        self.courses.smart = r.data or []
+        return self.courses.smart
+
+    def getSmartCourseContext(self, courseId, classId, force: bool = False):
+        """
+        ### 取得智慧课程的上下文（知识点树/课程信息）
+        * courseId: 课程 ID（网址中的第一个 ID）
+        * classId: 班级 ID（网址中的第二个 ID）
+        """
+        key = f"smart_{courseId}_{classId}"
+        if key in self.context and not force:
+            return self.context[key]
+        self._checkCookies()
+        self._sessionReady()
+        logger.info(f"Getting smart course context for {courseId}/{classId}")
+
+        basic = self.smartQuery("/knowledge-study/course-basic",
+                                {"courseId": courseId, "classId": classId}).data
+        themes = self.smartQuery("/knowledge-study/list-knowledge-theme",
+                                 {"courseId": courseId, "classId": classId}).data
+        themes.default = []
+        courseThemeList = themes.courseThemeList or []
+
+        # flatten the theme tree into a simple knowledge list
+        knowledge_list = []
+        for theme in courseThemeList:
+            for subTheme in theme.subThemeList or []:
+                for knowledge in subTheme.knowledgeList or []:
+                    knowledge.themeName = theme.themeName
+                    knowledge.subThemeName = subTheme.themeName
+                    knowledge_list.append(knowledge)
+        logger.info(f"{len(courseThemeList)} themes, {len(knowledge_list)} knowledge points")
+
+        ctx = ObjDict({
+            "courseId": courseId,
+            "classId": classId,
+            "basic": basic,
+            "themes": courseThemeList,
+            "knowledgeList": knowledge_list,
+            "accessKeys": ObjDict(default=None),
+            "cookies": self.session.cookies.copy(),
+            "headers": self.session.headers.copy(),
+            "fucked_time": 0
+        }, default={})
+        self.context[key] = ctx
+        return ctx
+
+    def smartQuery(self, path: str, data: dict, ok_code: int = 200, method: str = "POST"):
+        """### query smart course API, auto encrypt with AI_KEY"""
+        self._checkCookies()
+        url = path if path.startswith("http") else SMART_BASE + path
+        return self.zhidaoQuery(url, data, ok_code=ok_code, key=AI_KEY,
+                                contentType="json", method=method)
+
+    def listSmartNodeResources(self, courseId, classId, knowledgeId, shareCourseId: str = ""):
+        """### 取得知识点下的资源列表（带学习状态）"""
+        data = {"courseId": courseId, "classId": classId, "knowledgeId": knowledgeId}
+        if shareCourseId:
+            data["shareCourseId"] = shareCourseId
+        return self.smartQuery("/resources/list-knowledge-resource", data).data
+
+    def getSmartResourceDetail(self, courseId, classId, knowledgeId, resourcesUid, fileId=None):
+        """### 取得某个资源的详情（视频分段、书籍正文等）"""
+        data = {"courseId": courseId, "classId": classId,
+                "knowledgeId": knowledgeId, "resourcesUid": resourcesUid}
+        if fileId is not None:
+            data["fileId"] = fileId
+        return self.smartQuery("/resources/get-node-resources-detail", data).data
+
+    def getSmartVideoTime(self, courseId, classId, videoIds: list):
+        """### 取得视频总长度，返回 {videoId: 秒}"""
+        r = self.smartQuery("/resources-lab/get-video-time",
+                            {"courseId": courseId, "classId": classId,
+                             "videoIdList": [smartInt(v) for v in videoIds]}).data
+        times = ObjDict(default=0)
+        for v in r or []:
+            times[str(v.videoId)] = int(v.time or 0)
+        return times
+
+    def getSmartKnowledgeVideoTime(self, courseId, classId, knowledgeId):
+        """### 取得知识点下每个资源已观看的秒数，返回 {resourcesUid: 秒}"""
+        r = self.smartQuery("/studyRecord/get-knowledge-video-time",
+                            {"courseId": courseId, "classId": classId,
+                             "knowledgeId": knowledgeId}).data
+        times = ObjDict(default=0)
+        for k, v in (r or {}).items():
+            times[str(k)] = int(v or 0)
+        return times
+
+    def getSmartAccessKey(self, courseId, classId, knowledgeId):
+        """### 取得学习凭证 accessKey，上报进度时使用"""
+        data = {"courseId": courseId, "keyId": knowledgeId, "knowledgeId": knowledgeId,
+                "classId": classId, "type": "MAP", "uuid": self.uuid}
+        try:
+            return self.smartQuery("/knowledge-study/get-access-key", data).data.accessKey
+        except Exception as e:
+            logger.error(f"Failed to get access key: {e}")
+            return ""
+
+    def getSmartWatchUId(self, fileId):
+        """
+        ### 取得视频观看凭证 watchUId
+        播放器初始化接口返回的 uuid 即可作为 watchUId 使用，同时返回视频地址
+        """
+        try:
+            r = self.session.get("https://newbase.zhihuishu.com/video/initVideoNew",
+                                 params={"videoID": str(fileId)},
+                                 proxies=self.proxies, timeout=10)
+            result = ObjDict(json.loads(r.text)).result
+            url = ""
+            for line in result.lines or []:
+                if line.lineUrl:
+                    url = line.lineUrl
+                    break
+            return result.uuid, url
+        except Exception as e:
+            logger.error(f"Failed to get watchUId of video {fileId}: {e}")
+            return str(int(time.time()*1000)), ""
+
+    def reportSmartVideoProcess(self, courseId, classId, fileId, knowledgeId, lastWatchTime,
+                                studyTotalTime: int = 10, shareCourseId: str = "", nodeType: int = 0):
+        """
+        ### 上报智慧课程视频观看进度
+        * lastWatchTime: 当前播放位置（秒）
+        * studyTotalTime: 本轮学习时长（秒），网页端每 10 秒固定上报 10
+        """
+        data = {
+            "courseId": courseId,
+            "classId": classId,
+            "fileId": smartInt(fileId),
+            "studyTotalTime": max(int(studyTotalTime), 1),
+            "lastWatchTime": int(lastWatchTime),
+            "knowledgeId": knowledgeId,
+            "shareCourseId": shareCourseId or "",
+            "watchUId": 1,
+            "nodeType": nodeType,
+        }
+        return self.smartQuery("/studyRecord/report", data).data
+
+    def saveSmartStudy(self, courseId, classId, knowledgeId, resourcesUid=None, fileId=None,
+                       studyTime=None, lastWatchTime=None, studyFileType: int = 1):
+        """
+        ### 上报智慧课程学习记录
+        * studyTime: 累计学习时长（秒），视频进度上报累计值（不是增量）
+        * studyFileType: 1 视频，2 其他资源
+        """
+        data = {
+            "courseId": courseId,
+            "classId": classId,
+            "knowledgeId": knowledgeId,
+            "source": 1,
+            "studyFileType": studyFileType,
+        }
+        if resourcesUid is not None:
+            data["resourceId"] = resourcesUid
+        if fileId is not None:
+            data["fileId"] = smartInt(fileId)
+        if studyTime is not None:
+            data["studyTime"] = round(float(studyTime), 6)
+        if lastWatchTime is not None:
+            data["lastWatchTime"] = int(lastWatchTime)
+        return self.smartQuery("/studyRecord/study", data).data
+
+    def completeSmartResource(self, courseId, classId, knowledgeId, resourcesUid, fileId=None):
+        """### 将智慧课程资源标记为已完成（对视频无效，视频必须上报观看进度）"""
+        data = {"courseId": courseId, "classId": classId, "knowledgeId": knowledgeId,
+                "resourcesUid": resourcesUid, "watchUId": 1}
+        if fileId is not None:
+            data["fileId"] = smartInt(fileId)
+        return self.smartQuery("/studyRecord/completed", data).data
+
+    def isSmartCourseEnded(self, courseId, classId):
+        """### 课程学习是否已截止"""
+        try:
+            return bool(self.smartQuery("/class/is-end-study",
+                                        {"courseId": courseId, "classId": classId}).data)
+        except Exception:
+            return False
+
+    def querySmartExam(self, courseId, classId, knowledgeId):
+        """### 查询知识点测验信息"""
+        return self.smartQuery("/knowledge-study/query-knowledge-free-exam",
+                               {"courseId": courseId, "classId": classId,
+                                "knowledgeId": knowledgeId}, ok_code=None)
+
+    def getSmartExamPaper(self, courseId, classId, knowledgeId):
+        """
+        ### 取得知识点的练习试卷（每次调用会创建一个新的练习）
+        返回 {examTestId, paperId, questionNum, masteryScore, ...}，没有练习时 examTestId 为 null
+        """
+        data = {"scMapId": courseId, "courseId": courseId, "classId": classId,
+                "knowledgeId": knowledgeId}
+        try:
+            return self.smartQuery("/exam/questions-paper", data, ok_code=None).data
+        except Exception as e:
+            logger.error(f"Failed to get smart exam paper: {e}")
+            return None
+
+    def getSmartCourseMapUid(self, courseId):
+        """### 取得课程 mapUid / mapName（AI 问答需要）"""
+        try:
+            r = self.smartQuery("https://kg-ai-run.zhihuishu.com/run/gateway/t/common/course/get-course-mapUid",
+                                {"courseId": courseId}).data
+            if r and r.get("mapUid"):
+                return r.get("mapUid") or "", r.get("mapName") or ""
+        except Exception as e:
+            logger.debug(f"Failed to get course mapUid: {e}")
+        # 兜底：从课程列表里找
+        try:
+            for c in self.getSmartCourseList():
+                if str(c.get("courseId")) == str(courseId) and c.get("mapUid"):
+                    return c.get("mapUid") or "", c.get("courseName") or ""
+        except Exception as e:
+            logger.debug(f"Failed to get mapUid from course list: {e}")
+        return "", ""
+
+    def getSmartExamState(self, examTestId, examPaperId):
+        """### 取得练习状态（0 未开始 / 1 进行中 / 3 进行中 / 6 已提交）"""
+        try:
+            r = self.zhidaoAiExamQuery(
+                SMART_EXAM_BASE + "/exam/user/getExamTestUserInfo",
+                {"examTestId": examTestId, "examPaperId": examPaperId},
+                ok_code=0, key=EXAM_KEY, method="GET")
+            return (r.get("data") or {}).get("examState")
+        except Exception as e:
+            logger.error(f"Failed to get smart exam state: {e}")
+            return None
+
+    def getSmartKnowledgeMastery(self, courseId, classId, knowledgeId):
+        """### 取得知识点的掌握度统计（questionNum/correctNum/mastery/...）"""
+        try:
+            r = self.smartQuery("/mastery-statistics/get-knowledge-mastery-stat",
+                                {"courseId": courseId, "classId": classId,
+                                 "knowledgeId": knowledgeId}, ok_code=None)
+            return r.get("data") or {}
+        except Exception as e:
+            logger.error(f"Failed to get mastery stat: {e}")
+            return {}
+
+    def fuckSmartExam(self, courseId, classId, knowledge, aiConfig: dict = None,
+                      maxAttempts: int = 3, targetMastery: int = 95):
+        """
+        ### 刷智慧课程知识点的练习测试（提升掌握度）
+        网页端的练习没有公开答案接口，因此按“作答 -> 提交 -> 读取正确答案 -> 再练习”的方式刷：
+        * 首次没有缓存时使用启发式/随机作答
+        * 提交后学生端接口会返回每道题的正确选项，答案会写入 aiexamAnswer 缓存
+        * 再次练习时优先使用缓存答案，通常一次即可满分
+        * aiConfig.enabled 且配置了可用的 OpenAI key 时，会优先用 AI 作答
+        """
+        knowledgeId = knowledge.knowledgeId
+        name = knowledge.knowledgeName
+        aiConfig = aiConfig or {}
+
+        # AI 作答开关：智到内置 AI（dify 工作流）或自配 OpenAI 任一可用即可
+        opConf = aiConfig.get("openai", {}) or {}
+        useZhidao = bool(aiConfig.get("enabled")) and bool(aiConfig.get("use_zhidao_ai", False)) \
+            and aiConfig.get("exam_use_ai", False)
+        useOpenai = bool(aiConfig.get("enabled")) and not aiConfig.get("use_zhidao_ai", False) \
+            and str(opConf.get("api_key", "")).strip() not in ("", "sk-")
+        examAI = dict(aiConfig)
+        examAI["enabled"] = bool(useZhidao or useOpenai)
+        mapUid, mapName = self.getSmartCourseMapUid(courseId)
+
+        best = 0
+        ctx = self.context.get(f"smart_{courseId}_{classId}")
+        attempt_begin = time.time()
+        for attempt in range(1, maxAttempts + 1):
+            try:
+                stat = self.getSmartKnowledgeMastery(courseId, classId, knowledgeId)
+                mastery = max(int(stat.get("mastery") or 0), int(stat.get("masteryHigh") or 0))
+                best = max(best, mastery)
+                if mastery >= targetMastery:
+                    logger.info(f"Mastery of {name} already {mastery}, skip exam")
+                    return best
+
+                meta = self.getSmartExamPaper(courseId, classId, knowledgeId)
+                if not meta or not meta.get("examTestId") or not meta.get("paperId"):
+                    logger.info(f"No exam available for knowledge {name}")
+                    return best
+
+                examTestId, paperId = meta.examTestId, meta.paperId
+                state = self.getSmartExamState(examTestId, paperId)
+                logger.info(f"Fucking smart exam {name}, attempt {attempt}, "
+                            f"paper {paperId}, state {state}")
+                examCtx = ExamCtx(fucker=self, courseId=courseId, knowledgeId=knowledgeId,
+                                  examTestId=examTestId, examPaperId=paperId,
+                                  progress_view=self.progressbar_view, aiConfig=examAI,
+                                  opExtra={"courseName": mapName or getattr(knowledge, "themeName", ""),
+                                           "knowledgePoint": name,
+                                           "mapUid": mapUid, "scMapUid": str(courseId)},
+                                  skipOpen=state == 6)
+                ok, correct, total = examCtx.startFuck()
+                stat = self.getSmartKnowledgeMastery(courseId, classId, knowledgeId)
+                mastery = max(int(stat.get("mastery") or 0), int(stat.get("masteryHigh") or 0))
+                best = max(best, mastery)
+                logger.info(f"Smart exam {name} attempt {attempt}: {correct}/{total}, mastery {mastery}")
+                if mastery >= targetMastery or (total and correct >= total):
+                    break
+                if ctx is not None:
+                    ctx.fucked_time += int(time.time() - attempt_begin)
+                attempt_begin = time.time()
+                time.sleep(2)
+            except Exception as e:
+                logger.exception(e)
+                logger.error(f"Failed to fuck smart exam {name}: {e}")
+                try:
+                    examCtx.examStopped = True
+                except Exception:
+                    pass
+                break
+        return best
+
+    @staticmethod
+    def smartResourceKind(resource: dict) -> str:
+        """
+        ### 判断智慧课程资源类型
+        返回 video / ppt / file / ebook / img / mp3 / link / other
+        """
+        r = ObjDict(resource, default=None)
+        if r.resourcesDataType in (12, 23) and r.resourcesChannel != 7:
+            return "link"
+        if r.resourcesDataType == 22:
+            return "video"
+        if r.resourcesDataType == 21:
+            return "ebook"
+        if r.resourcesChannel == 7:
+            return "img"
+        suffix = (r.resourcesSuffix or "").lower()
+        if not suffix:
+            url = r.resourcesUrl or ""
+            suffix = url.split("?")[0].rsplit(".", 1)[-1].lower() if "." in url else ""
+        if suffix in ("jpg", "jpeg", "png", "gif", "svg", "tif", "wmf", "hdr", "dxf", "psd", "tga", "bmp", "webp", "mpg"):
+            return "img"
+        if suffix in ("ppt", "pptx"):
+            return "ppt"
+        if suffix in ("mp4", "mpeg2", "wmv", "avi", "flv", "mov", "svga", "apng", "flash", "m4v", "asf",
+                      "rm", "rmvb", "ram", "mpeg", "3gp", "dvix", "dv", "mkv", "vob", "qt", "divx", "cpk", "fli", "flc", "mod"):
+            return "video"
+        if suffix in ("mp3", "wav", "wma", "aac", "m4a"):
+            return "mp3"
+        if suffix in ("txt", "doc", "docx", "xls", "xlsx", "csv", "pdf", "ebook"):
+            return "file"
+        return "other"
+
+    def fuckSmartVideo(self, courseId, classId, knowledge, resource, shareCourseId: str = ""):
+        """
+        ### 刷智慧课程视频
+        * knowledge: 知识点（含 knowledgeId / knowledgeName）
+        * resource: 资源项（含 resourcesDetail / studyStatus / schedule）
+        """
+        detail = ObjDict(resource.resourcesDetail, default=None)
+        knowledgeId = knowledge.knowledgeId
+        resourcesUid = detail.resourcesUid
+        fileId = detail.resourcesFileId
+        name = detail.resourcesName
+
+        # 视频分段信息
+        info = self.getSmartResourceDetail(courseId, classId, knowledgeId, resourcesUid, fileId)
+        segments = ((info or {}).get("resourcesVideoDetail") or {}).get("videoSegList") or []
+        if segments:
+            segStart = int(segments[0].videoSegStartTime or 0) / 1000.0
+            segEnd = int(segments[0].videoSegEndTime or 0) / 1000.0
+        else:
+            segStart, segEnd = 0.0, float(detail.resourcesTime or 0)
+        if segEnd <= 0:
+            try:
+                segEnd = float(self.getSmartVideoTime(courseId, classId, [fileId]).get(str(fileId)) or 0)
+            except Exception:
+                segEnd = 0
+        if segEnd <= 0:
+            raise ValueError(f"unknown video length: {name}")
+
+        # 已经看过的位置
+        try:
+            watched = float(self.getSmartKnowledgeVideoTime(courseId, classId, knowledgeId).get(str(resourcesUid)) or 0)
+        except Exception:
+            watched = 0.0
+        played = max(segStart, watched)
+        end_time = max(segStart + (segEnd - segStart) * self.end_thre, segStart + 1.0)
+
+        if played >= end_time or (resource.schedule or 0) >= 85:
+            logger.info(f"Video {name} already watched ({played:.0f}/{segEnd:.0f})")
+            return
+
+        # 模拟打开播放器（顺手取一次视频地址；上报用的 watchUId 固定为 1，不需要 uuid）
+        try:
+            watchUId, videoUrl = self.getSmartWatchUId(fileId)
+        except Exception:
+            videoUrl = ""
+        if videoUrl:
+            logger.debug(f"smart video url: {videoUrl}")
+
+        speed = self.speed or SMART_DEFAULT_SPEED
+        if speed > SMART_MAX_SPEED:
+            logger.warning(f"Speed {speed}x exceeds safe limit for smart course, clamp to {SMART_MAX_SPEED}x")
+            speed = SMART_MAX_SPEED
+        report_interval = SMART_REPORT_INTERVAL
+        last_report = played
+        begin_time = time.time()
+        logger.info(f"Fucking smart video {name} ({fileId}) {played:.0f}/{end_time:.0f}s, speed={speed}")
+        ctx = self.context.get(f"smart_{courseId}_{classId}")
+        while played < end_time:
+            time.sleep(1)
+            if ctx is not None:
+                ctx.fucked_time += 1
+                if ctx.fucked_time % 30 == 0:  # 视频较长时也能及时响应 -l 限制
+                    self._checkTimeLimit(f"smart_{courseId}_{classId}")
+            played = min(played + speed, end_time)
+            if played - last_report >= report_interval or played >= end_time:
+                try:
+                    self.saveSmartStudy(courseId, classId, knowledgeId, resourcesUid, fileId,
+                                        studyTime=played, lastWatchTime=int(played))
+                    self.reportSmartVideoProcess(courseId, classId, fileId, knowledgeId,
+                                                 int(played), int(played - last_report) or 1,
+                                                 shareCourseId)
+                except Exception as e:
+                    logger.error(f"Failed to report progress of video {name}: {e}")
+                last_report = played
+                progressBar(played, end_time, prefix=f"fucking {fileId}",
+                            suffix="done", progressbar_view=self.progressbar_view)
+        # 收尾：把最后一段进度补齐
+        try:
+            self.saveSmartStudy(courseId, classId, knowledgeId, resourcesUid, fileId,
+                                studyTime=played, lastWatchTime=int(played))
+            self.reportSmartVideoProcess(courseId, classId, fileId, knowledgeId,
+                                         int(played), max(int(report_interval), 1), shareCourseId)
+        except Exception as e:
+            logger.error(f"Failed to finish smart video {name}: {e}")
+        logger.info(f"Fucked smart video {name}, cost {time.time()-begin_time:.1f}s")
+
+    def fuckSmartResource(self, courseId, classId, knowledge, resource, shareCourseId: str = ""):
+        """### 刷智慧课程的单个资源（按类型分派）"""
+        detail = ObjDict(resource.resourcesDetail, default=None)
+        kind = self.smartResourceKind(dict(detail))
+        name = detail.resourcesName
+        knowledgeId = knowledge.knowledgeId
+        resourcesUid = detail.resourcesUid
+        fileId = detail.resourcesFileId
+
+        if kind == "video":
+            return self.fuckSmartVideo(courseId, classId, knowledge, resource, shareCourseId)
+
+        # 非视频资源：直接标记完成，与网页行为一致
+        ctx = self.context.get(f"smart_{courseId}_{classId}")
+        if ctx is not None:
+            ctx.fucked_time += 1
+        self.completeSmartResource(courseId, classId, knowledgeId, resourcesUid, fileId)
+        self.saveSmartStudy(courseId, classId, knowledgeId, resourcesUid,
+                            studyFileType=2)
+        logger.info(f"Fucked smart resource {name} ({kind})")
+
+    def fuckSmartCourse(self, courseId, classId, tree_view: bool = None, shareCourseId: str = "",
+                        aiConfig: dict = None, no_exam: bool = False, maxExamAttempts: int = 3):
+        """
+        ### 刷完整个智慧课程
+        * courseId: 课程 ID
+        * classId: 班级 ID
+        * aiConfig: AI 配置，用于练习测试自动作答
+        * no_exam: 跳过知识点练习测试
+        """
+        tree_view = self.tree_view if tree_view is None else tree_view
+        ctx = self.getSmartCourseContext(courseId, classId)
+        course = ctx.basic
+        tprint = print if tree_view else (lambda *a, **k: None)
+        prefix = self.prefix
+        begin_time = time.time()
+        try:
+            w_lim = os.get_terminal_size().columns - 1
+        except Exception:
+            w_lim = 80
+
+        courseName = (course or {}).get("courseName") or f"{courseId}/{classId}"
+        logger.info(f"Fucking smart course {courseName} ({courseId}/{classId})")
+        tprint(f"Fucking smart course: {courseName}")
+        cid = f"smart_{courseId}_{classId}"
+
+        try:
+            for theme in ctx.themes:
+                tprint(prefix)
+                tprint(f"{prefix}__Fucking theme {theme.themeName}"[:w_lim])
+                for subTheme in theme.subThemeList or []:
+                    knowledgeList = subTheme.knowledgeList or []
+                    if not knowledgeList:
+                        continue
+                    tprint(f"{prefix*2}__Theme {subTheme.themeName}"[:w_lim])
+                    for knowledge in knowledgeList:
+                        self._checkTimeLimit(cid)
+                        tprint(f"{prefix*3}__Knowledge {knowledge.knowledgeName}"[:w_lim])
+                        needStudy = not (knowledge.studyProgress and knowledge.studyProgress >= 100)
+                        needExam = (not no_exam) and knowledge.freeExam in (0, "0") \
+                            and (knowledge.masteryPercentage or 0) < 95
+                        if not needStudy and not needExam:
+                            tprint(f"{prefix*4}##already fucked ({knowledge.studyProgress}%)")
+                            continue
+                        if needStudy:
+                            try:
+                                resources = self.listSmartNodeResources(courseId, classId,
+                                                                        knowledge.knowledgeId, shareCourseId)
+                            except Exception as e:
+                                logger.exception(e)
+                                tprint(f"{prefix*4}##Failed to get resources: {e}"[:w_lim])
+                                resources = None
+                            for resource in (resources.resourceList if resources else []) or []:
+                                detail = ObjDict(resource.resourcesDetail, default=None)
+                                if resource.studyStatus == 1:
+                                    tprint(f"{prefix*4}##{detail.resourcesName} already fucked")
+                                    continue
+                                tprint(f"{prefix*4}__Fucking {detail.resourcesName}"[:w_lim])
+                                try:
+                                    self.fuckSmartResource(courseId, classId, knowledge, resource, shareCourseId)
+                                except TimeLimitExceeded:
+                                    raise
+                                except Exception as e:
+                                    logger.exception(e)
+                                    tprint(f"{prefix*4}##Failed: {e}"[:w_lim])
+                        # 知识点练习（提升掌握度）：有练习且最高掌握度未达标时才做
+                        if needExam:
+                            try:
+                                self.fuckSmartExam(courseId, classId, knowledge, aiConfig,
+                                                   maxAttempts=maxExamAttempts)
+                            except Exception as e:
+                                logger.exception(e)
+                                tprint(f"{prefix*4}##Exam failed: {e}"[:w_lim])
+                        tprint(f"{prefix*3}__Fucked knowledge point {knowledge.knowledgeName}"[:w_lim])
+        except TimeLimitExceeded as e:
+            logger.info(f"Fucking time limit exceeded: {e}")
+            self._pushplus("fuckZHS", "刷课已完成")
+            self._bark("fuckZHS", "刷课已完成")
+            tprint(prefix)
+            tprint(f"{prefix}##Fucking time limit exceeded: {e}\n")
+        except KeyboardInterrupt:
+            logger.info("User interrupted")
+            tprint(f"{prefix}##Interrupted")
+
+        wipeLine()
+        tprint(prefix)
+        tprint(f"{prefix}__Fucked smart course {courseName}, cost {time.time()-begin_time:.2f}s")
+
+
 class ExamCtx:
-    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int, progress_view: bool = True, aiConfig: dict = {}, opExtra: dict = {}):
+    def __init__(self, fucker: Fucker, courseId: int, knowledgeId: int, examTestId: int, examPaperId: int, progress_view: bool = True, aiConfig: dict = {}, opExtra: dict = {}, skipOpen: bool = False):
         self.fucker = fucker
         self.courseId = courseId
         self.examTestId = examTestId
@@ -1530,10 +2130,12 @@ class ExamCtx:
         self.opExtra = opExtra
         self.aiConfig = aiConfig
         self.progress_view = progress_view
+        self.skipOpen = skipOpen
 
         self.answerCache = {}
         self.allAnswerCache = {} # 存储同课程所有题目的答案
         self.sheetContent = None
+        self.referenceMaterials = []
         self.timeUpdateIndex = 0
         self.examStopped = False
 
@@ -1642,21 +2244,23 @@ class ExamCtx:
         result = self.allAnswerCache.get(key) # 从同课程所有题目的答案中获取
         return result
 
+    @staticmethod
+    def questionHash(text) -> str:
+        """### 题干哈希，用于跨 questionId 复用答案"""
+        plain = re.sub(r"<[^>]+>", "", str(text or "")).strip()
+        return hashlib.md5(plain.encode("utf-8")).hexdigest()
+
     def setAnswer(self, questionId: int, version: int, answer_data: dict):
-        self.answerCache[str(questionId) if version == 1 else f"{questionId}_{version}"] = {
+        entry = {
             "version": version,
             "question": answer_data.get("question", ""),
             "answer": answer_data.get("answer", ""),
             "answer_content": answer_data.get("answer_content", ""),
+            "hash": self.questionHash(answer_data.get("question", "")),
             "questionDict": answer_data.get("questionDict", {})
         }
-        self.allAnswerCache[str(questionId) if version == 1 else f"{questionId}_{version}"] = {
-            "version": version,
-            "question": answer_data.get("question", ""),
-            "answer": answer_data.get("answer", ""),
-            "answer_content": answer_data.get("answer_content", ""),
-            "questionDict": answer_data.get("questionDict", {})
-        }
+        self.answerCache[str(questionId) if version == 1 else f"{questionId}_{version}"] = dict(entry)
+        self.allAnswerCache[str(questionId) if version == 1 else f"{questionId}_{version}"] = dict(entry)
 
         self.writeAnswerCacheToDisk()
 
@@ -1682,7 +2286,7 @@ class ExamCtx:
                 raise e
         # 启动定时更新时间的线程
         threading.Thread(target=self.updateExamCostTime,
-                         args=(10,)).start()
+                         args=(10,), daemon=True).start()
         return True
 
     def updateExamCostTime(self, heartbeatTime: int = 10):
@@ -1721,7 +2325,8 @@ class ExamCtx:
         try:
             ret = self.fucker.zhidaoAiExamQuery(
                 url, data, ok_code=0, key=EXAM_KEY, method="GET")
-            self.sheetContent = ret["data"]["partSheetVos"][0]["questionSheetVos"]
+            parts = ret["data"].get("partSheetVos") or []
+            self.sheetContent = [q for part in parts for q in (part.get("questionSheetVos") or [])]
         except Exception as e:
             logger.error(f"getSheetContent failed: {e}")
 
@@ -1760,7 +2365,9 @@ class ExamCtx:
                 return None
 
     def saveAnswer(self, questionId: int, answers: list):
-        if len(answers) == 0:
+        if not answers:
+            return False
+        if all(str(a).strip() in ("", "None") for a in answers):
             return False
         url = "https://studentexamtest.zhihuishu.com/gateway/t/v1/answer/saveAnswer"
 
@@ -1820,11 +2427,25 @@ class ExamCtx:
         # 尝试从缓存中获取答案
         answer = self.getAnswer(questionId, version)
         if answer is not None:
-            answer = answer.get("answer", "").split('#@#')
+            cached = str(answer.get("answer", "") or "")
+            # 旧版本给填空客观题缓存的是选项 id，必须忽略，否则永远判错
+            if questionType == 3 and re.fullmatch(r"[0-9#@]+", cached):
+                cached = ""
+            if cached:
+                # 随机睡眠3-5秒，模拟网络延迟
+                time.sleep(randint(3, 5))
+                return cached.split('#@#'), "cached"
 
-            # 随机睡眠3-5秒，模拟网络延迟
-            time.sleep(randint(3, 5))
-            return answer, "cached"
+        # 同一道题换了个 questionId 时，按题干哈希再找一次
+        content_hash = self.questionHash(questionDict.get("content", ""))
+        for item in self.allAnswerCache.values():
+            cached = str(item.get("answer", "") or "")
+            if item.get("hash") != content_hash or not cached:
+                continue
+            if questionType == 3 and re.fullmatch(r"[0-9#@]+", cached):
+                continue
+            time.sleep(randint(1, 2))
+            return cached.split('#@#'), "cached(hash)"
 
         # 答案不存在，获取题目内容，使用AI生成答案
         questionContent = questionDict["content"]
@@ -1836,10 +2457,19 @@ class ExamCtx:
             if "id" in option and "content" in option
         ]
 
-        # 选项数量少于2个，答案就是选项内容
+        # 填空客观题（自动批阅）：只有拿到答案文本才能交，交选项 id 必判错
+        if questionType not in (1, 2, 14):
+            if len(choices) == 1:
+                text = re.sub(r"<[^>]+>", "", str(choices[0]["content"]) or "").strip()
+                if text:
+                    return [text], "fill"
+            return None, "unsupported type"
+
+        # 选项数量少于2个（判断/单选等异常情况），能答就答，不能答就跳过
+        if not choices:
+            return None, "no options"
         if len(choices) < 2:
-            answer = choices[0]["id"]
-            return [answer]
+            return [choices[0]["id"]], "single option"
 
         try:
             # 选项数量大于2个，使用AI生成答案
@@ -1856,18 +2486,41 @@ class ExamCtx:
                 prompt = op.judgementTemplate(questionContent, choices, referenceMaterials=self.referenceMaterials)
             else:
                 raise ValueError(f"Unsupported question type: {questionType}")
-            answer = op.generateAnswer(prompt)
+            answer = op.generateAnswer(prompt, choices)
             return answer, "AI generated"
         except Exception as e:
-            # 随机生成答案
-            if questionType == 1:
-                answer = self.select_random_answers(choices, 1)
-            elif questionType == 2:
-                answer = self.select_random_answers(choices, 2)
+            # 没有可用的 AI，使用简单启发式，实在不行再随机
+            answer = self.heuristicAnswer(questionType, questionContent, choices)
 
-            time.sleep(randint(3, 5))
+            time.sleep(randint(1, 2))
 
-        return answer, "random"
+        return answer, "heuristic"
+
+    def heuristicAnswer(self, questionType: int, questionContent: str, choices: list) -> list:
+        """
+        ### 没有 AI 可用时的兜底答题启发式
+        * 判断题：出现“只/就是/一定/全部”等绝对化表述时选错，否则选对
+        * 选择题：优先选择“以上都是”类选项，否则随机
+        """
+        def strip(html):
+            return re.sub(r"<[^>]+>", "", str(html or "")).strip()
+
+        text = strip(questionContent)
+        texts = [(strip(c["content"]), c["id"]) for c in choices]
+        if questionType == 14:
+            for t, cid in texts:
+                if t in ("错", "错误", "否", "不正确") and re.search(r"(就是|只能|只吃|一定|全部|所有|必须|完全|均|都)", text):
+                    return [cid]
+            for t, cid in texts:
+                if t in ("对", "正确", "是"):
+                    return [cid]
+            return [texts[0][1]]
+        for t, cid in texts:
+            if re.search(r"(以上都|以上均|所有以上|上述全|全都正确|以上选项)", t):
+                return [cid]
+        if questionType == 2:
+            return [c["id"] for c in sample(choices, min(2, len(choices)))]
+        return [sample(choices, 1)[0]["id"]]
 
     def select_random_answers(self, choices, n):
         # 确保 n 不大于 choices 的长度
@@ -1885,8 +2538,11 @@ class ExamCtx:
         # 加载答案缓存
         self.readAnswerCache(self.examTestId)
 
-        # 打开考试
-        self.openExam()
+        # 打开考试（已经开考的不必重复打开，直接开始计时心跳）
+        if self.skipOpen:
+            threading.Thread(target=self.updateExamCostTime, args=(10,), daemon=True).start()
+        else:
+            self.openExam()
 
         # 获取考试试卷内容
         sheetContent = self.getSheetContent()
@@ -1911,7 +2567,11 @@ class ExamCtx:
 
             # 获取题目答案
             questionContentDict.version = questionDict.get("version", 1)
-            answer, note = self.getQuestionAnswer(questionContentDict)
+            try:
+                answer, note = self.getQuestionAnswer(questionContentDict)
+            except Exception as e:
+                logger.error(f"getQuestionAnswer failed: {questionDict['questionId']} {e}")
+                continue
 
             if answer is None:
                 logger.error(
@@ -1962,7 +2622,12 @@ class ExamCtx:
             answer = [{"id": option["id"], "content": option["content"]}
                       for option in questionContentDict["optionVos"]
                       if option.get("isCorrect", 0) == 1]
-            answer_str = '#@#'.join([str(option["id"]) for option in answer])
+            if questionContentDict.get("questionType") == 3:
+                # 填空客观题缓存文本
+                answer_str = '#@#'.join([re.sub(r"<[^>]+>", "", str(option["content"])).strip()
+                                        for option in answer])
+            else:
+                answer_str = '#@#'.join([str(option["id"]) for option in answer])
             answer_content_str = '\n'.join(
                 [option["content"] for option in answer])
 
@@ -2061,6 +2726,68 @@ class Openai:
         raise Exception("Unexpected error in completion method")
 
     def zhiDaoCompletion(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3, retry_delay: float = 1.0) -> str:
+        """
+        ### 通过智慧树内置 AI（dify 工作流「AI研习室-助教回答」）作答
+        * 旧接口 ai-knowledge-map-platform/.../qa/platform/stream 已下线（返回 509）
+        * 需要提供 mapUid / scMapUid（放在 self.extra 里），否则知识库检索为空
+        """
+        url = "https://kg-dify-proxy.zhihuishu.com/dify/gateway/t/dify/v1"
+        body = {
+            "response_mode": "streaming",
+            "taskName": "AI研习室-助教回答",
+            "inputs": {
+                "mapUid": self.extra.get("mapUid", ""),
+                "scMapUid": self.extra.get("scMapUid", ""),
+                "query": prompt,
+            },
+        }
+        payload = {
+            "secretStr": Cipher(AI_KEY).encrypt(json.dumps(body, ensure_ascii=False)),
+            "date": int(time.time() * 1000),
+        }
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                response = self.session.post(
+                    url, data=json.dumps(payload), stream=True, timeout=(10, 240),
+                    headers={"Accept": "text/event-stream",
+                             "Content-Type": "application/json"})
+                response.raise_for_status()
+                cache = self.__parseDifyStream(response)
+                if cache:
+                    return cache
+                raise ValueError("empty answer from dify workflow")
+            except Exception as e:
+                last_error = e
+                logger.error(f"Completion attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+        raise Exception(f"zhiDaoCompletion failed: {last_error}")
+
+    @staticmethod
+    def __parseDifyStream(response: requests.Response) -> str:
+        """### 解析 dify 工作流的 SSE 输出"""
+        cache = ""
+        for line in response.iter_lines():
+            if not line:
+                continue
+            text = line.decode("utf-8", "replace")
+            if not text.startswith("data:"):
+                continue
+            try:
+                event = json.loads(text[5:].strip())
+            except json.JSONDecodeError:
+                continue
+            kind = event.get("event")
+            if kind == "text_chunk":
+                cache += (event.get("data") or {}).get("text", "")
+            elif kind == "workflow_finished":
+                outputs = (event.get("data") or {}).get("outputs") or {}
+                if not cache and outputs.get("result"):
+                    cache = str(outputs["result"])
+        return cache
+
+    def __zhiDaoCompletionV1(self, prompt: str, aimStart: str = "```answer", aimEnd: str = "```", max_retries: int = 3, retry_delay: float = 1.0) -> str:
         base_url = "https://ai-knowledge-map-platform.zhihuishu.com/knowledgemap/gateway/t/qa/platform/stream"
 
         body = {
@@ -2175,7 +2902,7 @@ class Openai:
     def judgementTemplate(self, question, choices, referenceMaterials: list = []) -> str:
         return self._baseTemplate(question, choices, referenceMaterials, "判断题")
 
-    def generateAnswer(self, prompt: str) -> list:
+    def generateAnswer(self, prompt: str, choices: list = None) -> list:
         tokens = self.encoder.encode(prompt)
 
         # 如果大于32ktoken，取后32ktoken
@@ -2186,40 +2913,74 @@ class Openai:
             logger.warning(
                 f"Prompt is too long, truncated to {len(tokens)} tokens")
         if self.useZhidao:
-            aicompletion = self.zhiDaoCompletion(prompt)
+            aicompletion = self.zhiDaoCompletion(prompt, max_retries=int(self.extra.get("ai_retries", 1)))
         else:
             aicompletion = self.openaiCompletion(prompt)
 
-        # 寻找```answer \n ... \n```块
-        answer_block = re.search(
-            r"```answer\n(.*?)\n```", aicompletion, re.DOTALL)
-        if answer_block is None:
-            raise ValueError("Answer block not found in completion")
-
-        # 解析答案
-        answer_str = answer_block.group(1)
-        try:
-            # 首先尝试用 json.loads
-            answer_list = json.loads(answer_str)
-        except json.JSONDecodeError:
-            try:
-                # 如果 json.loads 失败，尝试用 ast.literal_eval
-                answer_list = ast.literal_eval(answer_str)
-            except (ValueError, SyntaxError):
-                raise ValueError(f"Invalid answer format: {answer_str}")
-
-        if not isinstance(answer_list, list):
-            raise ValueError(
-                f"Answer should be a list, got: {type(answer_list)}")
-
-        answers = []
-        # 验证答案格式
-        for answer in answer_list:
-            if not isinstance(answer, dict) or "id" not in answer or "content" not in answer:
-                raise ValueError(f"Invalid answer format: {answer}")
-            answers.append(answer["id"])
-
+        answers = self.parseAnswer(aicompletion, choices)
+        if not answers:
+            raise ValueError(f"Answer block not found in completion: {aicompletion[:200]}")
         return answers
+
+    @staticmethod
+    def parseAnswer(text: str, choices: list = None) -> list:
+        """
+        ### 从 AI 回复中解析答案
+        先找 markdown 代码块里的 JSON；不行再退化为“选项 id / 选项内容 / 选项字母”匹配，
+        兼容模型不按格式输出的情况。
+        """
+        if not text:
+            return None
+        for pattern in (r"```answer\s*(.*?)\s*```", r"```json\s*(.*?)\s*```",
+                        r"(\[\s*\{.*?\}\s*\])"):
+            match = re.search(pattern, text, re.DOTALL)
+            if not match:
+                continue
+            raw = match.group(1).strip()
+            try:
+                data = json.loads(raw)
+            except Exception:
+                try:
+                    data = ast.literal_eval(raw)
+                except Exception:
+                    continue
+            if isinstance(data, list) and data:
+                ids = []
+                for item in data:
+                    if isinstance(item, dict) and "id" in item:
+                        ids.append(item["id"])
+                    elif isinstance(item, (int, str)):
+                        ids.append(item)
+                if ids:
+                    return ids
+        if not choices:
+            return None
+        plain = re.sub(r"<[^>]+>", "", text)
+        id_hits = [c["id"] for c in choices if str(c["id"]) in plain]
+        if len(id_hits) == 1:
+            return id_hits
+        content_hits = []
+        for c in choices:
+            content = re.sub(r"<[^>]+>", "", str(c.get("content", ""))).strip()
+            if len(content) >= 2 and content in plain:
+                content_hits.append(c["id"])
+        if len(content_hits) == 1:
+            return content_hits
+        letters = re.findall(r"(?:答案|应选|选择|故选)[^A-Da-d]{0,10}([A-Da-d]{1,4})", plain)
+        if letters:
+            ids = []
+            for ch in letters[0].upper():
+                idx = ord(ch) - ord("A")
+                if 0 <= idx < len(choices):
+                    ids.append(choices[idx]["id"])
+            if ids:
+                return ids
+        match = re.search(r"\b([A-D])\b", plain)
+        if match:
+            idx = ord(match.group(1)) - ord("A")
+            if 0 <= idx < len(choices):
+                return [choices[idx]["id"]]
+        return None
 
 class PptToTxt:
     def __init__(self, moonShotKey,baseUrl="https://api.moonshot.cn/v1", max_file_size_mb=100, max_cache_files=500, max_cache_size_gb=8, delete_immediately=False):

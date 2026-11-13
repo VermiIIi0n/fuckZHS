@@ -3,6 +3,7 @@
 import io
 import os
 import sys
+import unicodedata
 from requests.cookies import RequestsCookieJar, create_cookie
 from PIL import Image, ImageOps
 from datetime import timedelta
@@ -63,6 +64,26 @@ def terminalShowImage_tty(img):
     qr_str += white * 49 + new_line
     print(qr_str)
 
+def strWidth(text: str) -> int:
+    """### 字符串在终端的显示宽度（中日韩全角字符占 2 列）"""
+    width = 0
+    for char in str(text):
+        if unicodedata.combining(char):
+            continue
+        width += 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+    return width
+
+def truncateWidth(text: str, width: int) -> str:
+    """### 按终端显示宽度截断字符串"""
+    out, used = "", 0
+    for char in str(text):
+        char_width = 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
+        if used + char_width > width:
+            break
+        out += char
+        used += char_width
+    return out
+
 def getDir():
     return os.path.dirname(os.path.realpath(__file__))
 
@@ -105,7 +126,7 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     * `length`      - Optional  : character length of bar (Int)
     * `fill`        - Optional  : bar fill character (Str)
     """
-    if not progressbar_view:
+    if not progressbar_view or not total:
         return False
     if not length:
         try:
@@ -115,7 +136,13 @@ def progressBar (iteration, total, prefix = '', suffix = '', decimals = 1,
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     prefix = f"{prefix} |"
     suffix = f"| {percent}% {suffix}"
-    bar_len = length - len(prefix) - len(suffix)
+    # 按显示宽度计算，中文名不会把整行撑到换行（否则每次 \r 重绘都会刷屏）
+    bar_len = length - strWidth(prefix) - strWidth(suffix)
+    if bar_len < 1:
+        # 前缀太长，截断前缀留出进度条空间
+        keep = max(length - strWidth(suffix) - 3, 0)
+        prefix = truncateWidth(prefix, keep) + " |" if keep else "|"
+        bar_len = max(length - strWidth(prefix) - strWidth(suffix), 1)
     filled_len = int(bar_len * iteration // total)
     bar = fill * filled_len + ' ' * (bar_len - filled_len)
     print(f"\r{prefix}{bar}{suffix}", end = '\r')

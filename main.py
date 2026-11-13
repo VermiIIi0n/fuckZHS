@@ -34,7 +34,7 @@ DEFAULT_CONFIG = {
         "enable": False,
         "token": "https://example.com/xxxxxxxxx"
     },
-    "config_version": "1.4.0",
+    "config_version": "1.5.1",
     "ai": {
         "enabled": True,
         "use_zhidao_ai": True,
@@ -51,7 +51,8 @@ DEFAULT_CONFIG = {
                 "delete_after_convert": True
             }
         },
-        "use_stream": True
+        "use_stream": True,
+        "exam_use_ai": False
     }
 }
 # get config or create one if not exist
@@ -68,6 +69,11 @@ if os.path.isfile(getConfigPath()):
             if versionCmp(config.config_version, "1.3.0") < 0:
                 pushplus = config.pop("push", {})
                 new.pushplus.update(pushplus)
+            if versionCmp(config.config_version, "1.5.1") < 0:
+                # 1.5.1 起 ai 配置新增 exam_use_ai，浅合并会把默认值冲掉，这里补回来
+                ai_conf = config.get("ai") or {}
+                ai_conf.setdefault("exam_use_ai", DEFAULT_CONFIG["ai"].get("exam_use_ai", False))
+                config["ai"] = ai_conf
             config.pop("config_version", None)
             new.update(config)
             config = new
@@ -114,9 +120,16 @@ parser.add_argument("--image_path", type=str,
 parser.add_argument("-ai", "--aicourse", type=str, nargs=2,
                     metavar=('COURSE_ID', 'CLASS_ID'),
                     help="AI Course ID and CLASS ID to fuck aiCourse")
+parser.add_argument("-sc", "--smartcourse", type=str, nargs=2,
+                    metavar=('COURSE_ID', 'CLASS_ID'),
+                    help="Smart Course(智慧课程) ID and CLASS ID to fuck, both can be found in URL")
+parser.add_argument("--share_course_id", type=str,
+                    help="shareCourseId for smart course, only needed for shared course")
+parser.add_argument("--exam_attempts", type=int, default=3,
+                    help="Max attempts for smart course practice exam, default is 3")
 
 parser.add_argument("--noexam", type=bool,
-                    help="Disable AI exam")
+                    help="Disable AI exam / smart course practice exam, e.g. --noexam 1")
 
 args = parser.parse_args()
 
@@ -281,6 +294,20 @@ if args.aicourse:
         exit(0)
 
 
+if args.smartcourse:
+    course_id, class_id = args.smartcourse
+    try:
+        fucker.fuckSmartCourse(course_id, class_id,
+                               shareCourseId=args.share_course_id or "",
+                               aiConfig=config.ai, no_exam=bool(args.noexam),
+                               maxExamAttempts=args.exam_attempts or 3)
+    except Exception as e:
+        logger.exception(e)
+        print(f"Error when fucking Smart course {course_id}/{class_id}:\n{e}")
+    finally:
+        print("Smart course finished")
+        exit(0)
+
 exec_list = getRealPath("execution.json")
 # fetch course list
 if args.fetch:
@@ -289,7 +316,10 @@ if args.fetch:
                       for c in fucker.getZhidaoList()]
         hike_ids = [{"name": c.courseName, "id": str(
             c.courseId)} for c in fucker.getHikeList()]
-        json.dump(zhidao_ids + hike_ids, f, indent=4, ensure_ascii=False)
+        smart_ids = [{"name": c.courseName, "id": str(c.courseId)}
+                     for c in fucker.getSmartCourseListSafe()]
+        json.dump(zhidao_ids + hike_ids + smart_ids, f,
+                  indent=4, ensure_ascii=False)
     exit(0)
 
 # get courses from file if not specified
