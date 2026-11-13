@@ -53,8 +53,8 @@ import tiktoken
 
 SMART_BASE = "https://kg-ai-run.zhihuishu.com/run/gateway/t/stu"   # 智慧课程 API 网关
 SMART_REPORT_INTERVAL = 10  # 智慧课程视频进度上报间隔（秒）
-SMART_DEFAULT_SPEED = 30.0  # 智慧课程视频默认倍速（实测 30x/60x 上报均被接受，取 30x 留余量）
-SMART_MAX_SPEED = 60.0      # 智慧课程视频倍速上限，超过后服务端会丢进度上报
+SMART_DEFAULT_SPEED = 60.0  # 智慧课程视频默认倍速（40x~100x 实测均 100% 被接受，取 60x 留余量）
+SMART_MAX_SPEED = 100.0     # 智慧课程视频倍速上限，再高收益有限且更容易被风控
 SMART_EXAM_BASE = "https://studentexamtest.zhihuishu.com/gateway/t/v1"  # 智慧课程练习/考试网关
 
 
