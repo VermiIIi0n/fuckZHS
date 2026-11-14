@@ -223,6 +223,7 @@ python main.py --fetch
 - `-ai`, `--aicourse`: AI课程, Input AI Course ID and CLASS ID to fu*k aiCourse
 - `-sc`, `--smartcourse`: 智慧课程(新形态课程), 输入课程 ID 与班级 ID
 - `--share_course_id`: 智慧课程的 shareCourseId, 仅共享课需要
+- `--exam_attempts`: 智慧课程知识点练习的单次运行最大尝试次数, 默认 6
 - `-h` `--help`: 显示帮助
 
 运行示例如下:
@@ -417,13 +418,21 @@ python main.py -sc 2118239646076444672 339168 -s 60  # 指定倍速（默认 60�
 5. `POST /exam/user/submit` `{examTestId, courseId, courseType:8, examPaperId, aiKnlowledgeId}`
 6. 提交后再读一次题目，可拿到 `userAnswerVo[].isCorrect` 与 `optionVos[].isCorrect`，
    正确答案会写入 `aiexamAnswer/<courseId>/<examTestId>.json` 缓存
-7. 重复 1-6，直到掌握度达标或达到次数上限（默认 3 次）
+7. 重复 1-6，直到某次练习全对（掌握度约 97）或达到次数上限（默认 6 次）
+8. 整门课刷完后会再做一次**补漏**：重新拉取课程状态，对仍未完成的资源和掌握度 < 90 的知识点再刷一遍，
+   保证一次运行尽量跑满（视频进度上报存在服务端异步，偶发丢报时需要补）
+
+> **一次运行即满分**：做练习前会先调用 `mastery-statistics/bd/get-test-question` 与
+> `mastery-statistics/get-test-question` 捞题库答案——这两个接口会随机返回题目且带 `isCorrect` 标记，
+> 循环十几次即可把题库答案基本捞全并写入答案缓存，之后第一遍作答通常就是 6/6、掌握度 97。
+> 题库特别大、捞不全时仍会回退到上面的“提交后回读答案”试错路径。
+> 题库存在多版本（同一题不同 version 的选项顺序会变），缓存命中时会按选项内容重新映射到当前版本的选项 id。
 
 > 支持题型：单选（1）、多选（2）、判断（14）、填空客观题（3，直接提交选项文本，提交选项 id 会被判错）；
 > 组合题/主观题等无法自动作答的题目会被跳过，不影响其它题目提交。
 
-首次作答若没有缓存、也没有可用的 OpenAI 模型，会用启发式/随机作答；
-从第二次起使用缓存答案，通常一次即满分。
+题库答案捞全后第一遍即可满分；个别没捞到的题目会用启发式/随机作答，
+提交后回读正确答案补进缓存，下一遍补齐（默认最多 6 次 + 一次补漏）。
 
 实测：
 - 知识点「健康教育学概述」：78% → 97%（6/6）
@@ -458,7 +467,7 @@ SSE 流式，需要课程 `mapUid`/`scMapUid`）。实测结果：
 ```bash
 python main.py -sc 2118239646076444672 339168                 # 资源 + 练习测试
 python main.py -sc 2118239646076444672 339168 --noexam 1      # 只刷资源，不做练习
-python main.py -sc 2118239646076444672 339168 --exam_attempts 2
+python main.py -sc 2118239646076444672 339168 --exam_attempts 6   # 默认 6 次
 ```
 
 ```Python

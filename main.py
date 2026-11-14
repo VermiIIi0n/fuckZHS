@@ -125,8 +125,8 @@ parser.add_argument("-sc", "--smartcourse", type=str, nargs=2,
                     help="Smart Course(智慧课程) ID and CLASS ID to fuck, both can be found in URL")
 parser.add_argument("--share_course_id", type=str,
                     help="shareCourseId for smart course, only needed for shared course")
-parser.add_argument("--exam_attempts", type=int, default=3,
-                    help="Max attempts for smart course practice exam, default is 3")
+parser.add_argument("--exam_attempts", type=int, default=6,
+                    help="Max attempts for smart course practice exam, default is 6")
 
 parser.add_argument("--noexam", type=bool,
                     help="Disable AI exam / smart course practice exam, e.g. --noexam 1")
@@ -300,7 +300,7 @@ if args.smartcourse:
         fucker.fuckSmartCourse(course_id, class_id,
                                shareCourseId=args.share_course_id or "",
                                aiConfig=config.ai, no_exam=bool(args.noexam),
-                               maxExamAttempts=args.exam_attempts or 3)
+                               maxExamAttempts=args.exam_attempts or 6)
     except Exception as e:
         logger.exception(e)
         print(f"Error when fucking Smart course {course_id}/{class_id}:\n{e}")

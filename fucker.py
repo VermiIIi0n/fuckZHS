@@ -55,6 +55,8 @@ SMART_BASE = "https://kg-ai-run.zhihuishu.com/run/gateway/t/stu"   # 智慧课�
 SMART_REPORT_INTERVAL = 10  # 智慧课程视频进度上报间隔（秒）
 SMART_DEFAULT_SPEED = 60.0  # 智慧课程视频默认倍速（40x~100x 实测均 100% 被接受，取 60x 留余量）
 SMART_MAX_SPEED = 100.0     # 智慧课程视频倍速上限，再高收益有限且更容易被风控
+SMART_EXAM_MAX_ATTEMPTS = 6  # 知识点练习单次运行最多尝试次数（题库较大时需要多轮才能刷满）
+SMART_EXAM_TARGET = 95       # 掌握度目标，达到后不再练习
 SMART_EXAM_BASE = "https://studentexamtest.zhihuishu.com/gateway/t/v1"  # 智慧课程练习/考试网关
 
 
@@ -1701,7 +1703,8 @@ class Fucker:
             return str(int(time.time()*1000)), ""
 
     def reportSmartVideoProcess(self, courseId, classId, fileId, knowledgeId, lastWatchTime,
-                                studyTotalTime: int = 10, shareCourseId: str = "", nodeType: int = 0):
+                                studyTotalTime: int = 10, shareCourseId: str = "", nodeType: int = 0,
+                                watchUId=1):
         """
         ### 上报智慧课程视频观看进度
         * lastWatchTime: 当前播放位置（秒）
@@ -1715,7 +1718,7 @@ class Fucker:
             "lastWatchTime": int(lastWatchTime),
             "knowledgeId": knowledgeId,
             "shareCourseId": shareCourseId or "",
-            "watchUId": 1,
+            "watchUId": watchUId if watchUId not in (None, "") else 1,
             "nodeType": nodeType,
         }
         return self.smartQuery("/studyRecord/report", data).data
@@ -1820,8 +1823,88 @@ class Fucker:
             logger.error(f"Failed to get mastery stat: {e}")
             return {}
 
+    @staticmethod
+    def smartQuestionAnswer(question) -> str:
+        """### 从题库接口返回的题目里取出正确答案（选项 id 或填空文本）"""
+        options = [o for o in (question.get("optionVos") or []) if o.get("isCorrect") == 1]
+        if not options:
+            return ""
+        if question.get("questionType") == 3:
+            return re.sub(r"<[^>]+>", "", str(options[0].get("content") or "")).strip()
+        return '#@#'.join(str(o["id"]) for o in options)
+
+    def harvestSmartExamAnswers(self, courseId, classId, knowledgeId, examTestId=0,
+                                maxRounds: int = 40, patience: int = 6):
+        """
+        ### 直接捞取知识点练习的题库答案
+        /mastery-statistics/bd/get-test-question 与 /mastery-statistics/get-test-question
+        会随机返回若干题目且带 isCorrect 标记，多刷几次能把题库答案基本捞全，
+        这样一次运行就能把练习做到满分，不必靠反复提交试错。
+        """
+        bank = {}
+        idle = 0
+        paths = ("/mastery-statistics/bd/get-test-question",
+                 "/mastery-statistics/get-test-question")
+        for _ in range(maxRounds):
+            fresh = 0
+            for path in paths:
+                try:
+                    ret = self.smartQuery(path, {"examTestId": examTestId or 0,
+                                                 "courseId": courseId, "classId": classId,
+                                                 "knowledgeId": knowledgeId}, ok_code=None)
+                except Exception as e:
+                    logger.debug(f"Harvest {path} failed: {e}")
+                    continue
+                for question in ((ret.get("data") or {}).get("questionList") or []):
+                    qid = str(question.get("id") or "")
+                    if not qid or qid in bank:
+                        continue
+                    answer = self.smartQuestionAnswer(question)
+                    if answer:
+                        bank[qid] = (question, answer)
+                        fresh += 1
+            if fresh:
+                idle = 0
+            else:
+                idle += 1
+                if idle >= patience:
+                    break
+        logger.info(f"Harvested {len(bank)} answers for knowledge {knowledgeId}")
+        return bank
+
+    def saveSmartAnswerBank(self, courseId, examTestId, bank: dict):
+        """### 把捞到的题库答案合并写入 aiexamAnswer 缓存"""
+        if not bank:
+            return
+        path = getRealPath(f"aiexamAnswer/{courseId}/{examTestId}.json")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        cache = {}
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    cache = json.load(f)
+            except Exception:
+                cache = {}
+        for qid, (question, answer) in bank.items():
+            version = question.get("version", 1)
+            key = str(qid) if str(version) == "1" else f"{qid}_{version}"
+            options = [{"id": option.get("id"), "content": option.get("content")}
+                       for option in (question.get("optionVos") or [])
+                       if option.get("isCorrect") == 1]
+            cache[key] = {
+                "version": version,
+                "question": question.get("content", ""),
+                "answer": answer,
+                "answer_content": "",
+                "options": options,
+                "hash": ExamCtx.questionHash(question.get("content", "")),
+                "questionDict": {},
+            }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=4)
+
     def fuckSmartExam(self, courseId, classId, knowledge, aiConfig: dict = None,
-                      maxAttempts: int = 3, targetMastery: int = 95):
+                      maxAttempts: int = SMART_EXAM_MAX_ATTEMPTS, targetMastery: int = SMART_EXAM_TARGET):
         """
         ### 刷智慧课程知识点的练习测试（提升掌握度）
         网页端的练习没有公开答案接口，因此按“作答 -> 提交 -> 读取正确答案 -> 再练习”的方式刷：
@@ -1845,6 +1928,7 @@ class Fucker:
         mapUid, mapName = self.getSmartCourseMapUid(courseId)
 
         best = 0
+        harvested = False
         ctx = self.context.get(f"smart_{courseId}_{classId}")
         attempt_begin = time.time()
         for attempt in range(1, maxAttempts + 1):
@@ -1862,6 +1946,14 @@ class Fucker:
                     return best
 
                 examTestId, paperId = meta.examTestId, meta.paperId
+                # 先从题库接口把答案捞全，避免靠反复试错
+                if not harvested:
+                    try:
+                        bank = self.harvestSmartExamAnswers(courseId, classId, knowledgeId, examTestId)
+                        self.saveSmartAnswerBank(courseId, examTestId, bank)
+                    except Exception as e:
+                        logger.error(f"Failed to harvest answers for {name}: {e}")
+                    harvested = True
                 state = self.getSmartExamState(examTestId, paperId)
                 logger.info(f"Fucking smart exam {name}, attempt {attempt}, "
                             f"paper {paperId}, state {state}")
@@ -1934,7 +2026,9 @@ class Fucker:
         detail = ObjDict(resource.resourcesDetail, default=None)
         knowledgeId = knowledge.knowledgeId
         resourcesUid = detail.resourcesUid
-        fileId = detail.resourcesFileId
+        # 个别资源只有 fileIdStr（例如引用的外部视频），两种都要兼容
+        fileId = detail.resourcesFileId or detail.resourcesFileIdStr
+        fileIdStr = detail.resourcesFileIdStr
         name = detail.resourcesName
 
         # 视频分段信息
@@ -1946,11 +2040,18 @@ class Fucker:
         else:
             segStart, segEnd = 0.0, float(detail.resourcesTime or 0)
         if segEnd <= 0:
-            try:
-                segEnd = float(self.getSmartVideoTime(courseId, classId, [fileId]).get(str(fileId)) or 0)
-            except Exception:
-                segEnd = 0
+            for vid in (fileId, fileIdStr):
+                if not vid:
+                    continue
+                try:
+                    segEnd = float(self.getSmartVideoTime(courseId, classId, [vid]).get(str(vid)) or 0)
+                except Exception:
+                    segEnd = 0
+                if segEnd > 0:
+                    fileId = vid
+                    break
         if segEnd <= 0:
+            logger.error(f"unknown video length of {name} (fileId={fileId}, fileIdStr={fileIdStr})")
             raise ValueError(f"unknown video length: {name}")
 
         # 已经看过的位置
@@ -1962,7 +2063,16 @@ class Fucker:
         end_time = max(segStart + (segEnd - segStart) * self.end_thre, segStart + 1.0)
 
         if played >= end_time or (resource.schedule or 0) >= 85:
-            logger.info(f"Video {name} already watched ({played:.0f}/{segEnd:.0f})")
+            # 差一点就完成（或服务端没收到最后一次上报）时，补一条上报把它顶完，而不是直接跳过
+            try:
+                final = max(played, end_time)
+                self.saveSmartStudy(courseId, classId, knowledgeId, resourcesUid, fileId,
+                                    studyTime=final, lastWatchTime=int(final))
+                self.reportSmartVideoProcess(courseId, classId, fileId, knowledgeId,
+                                             int(final), max(int(SMART_REPORT_INTERVAL), 1), shareCourseId)
+                logger.info(f"Video {name} near finished ({played:.0f}/{segEnd:.0f}), sent final report")
+            except Exception as e:
+                logger.error(f"Failed to finish smart video {name}: {e}")
             return
 
         # 模拟打开播放器（顺手取一次视频地址；上报用的 watchUId 固定为 1，不需要 uuid）
@@ -1972,6 +2082,13 @@ class Fucker:
             videoUrl = ""
         if videoUrl:
             logger.debug(f"smart video url: {videoUrl}")
+
+        # 少数资源详情会带 watchUId，优先使用，没有则用官方固定值 1
+        watchUId = (info or {}).get("watchUId")
+        if not watchUId:
+            inner = (info or {}).get("resourcesDetail") or {}
+            watchUId = inner.get("watchUId")
+        watchUId = watchUId or 1
 
         speed = self.speed or SMART_DEFAULT_SPEED
         if speed > SMART_MAX_SPEED:
@@ -2009,6 +2126,25 @@ class Fucker:
                                          int(played), max(int(report_interval), 1), shareCourseId)
         except Exception as e:
             logger.error(f"Failed to finish smart video {name}: {e}")
+        # 校验是否真的完成；未完成则用 initVideoNew 的 uuid 作为 watchUId 再补几次
+        try:
+            status = None
+            for r in (self.listSmartNodeResources(courseId, classId, knowledgeId, shareCourseId).resourceList or []):
+                if str(r.resourcesDetail.resourcesUid) == str(resourcesUid):
+                    status = r.studyStatus
+                    break
+            if status != 1:
+                alt_uid, _ = self.getSmartWatchUId(fileId)
+                logger.warning(f"Video {name} not completed yet, retry with watchUId={alt_uid}")
+                for _ in range(3):
+                    self.saveSmartStudy(courseId, classId, knowledgeId, resourcesUid, fileId,
+                                        studyTime=end_time, lastWatchTime=int(end_time))
+                    self.reportSmartVideoProcess(courseId, classId, fileId, knowledgeId,
+                                                 int(end_time), report_interval, shareCourseId,
+                                                 watchUId=alt_uid)
+                    time.sleep(0.5)
+        except Exception as e:
+            logger.error(f"Failed to verify video {name}: {e}")
         logger.info(f"Fucked smart video {name}, cost {time.time()-begin_time:.1f}s")
 
     def fuckSmartResource(self, courseId, classId, knowledge, resource, shareCourseId: str = ""):
@@ -2032,8 +2168,81 @@ class Fucker:
                             studyFileType=2)
         logger.info(f"Fucked smart resource {name} ({kind})")
 
+    def _sweepSmartCourse(self, courseId, classId, tprint, prefix, w_lim,
+                          shareCourseId: str = "", rounds: int = 2):
+        """
+        ### 第一遍刷完后补漏
+        视频进度上报存在服务端异步/偶发丢失，单遍运行偶尔会留下 0% 的资源；
+        这里重新拉取课程状态，把仍未完成的资源再刷一遍。
+        """
+        cid = f"smart_{courseId}_{classId}"
+        for rnd in range(1, rounds + 1):
+            self._checkTimeLimit(cid)
+            try:
+                ctx = self.getSmartCourseContext(courseId, classId, force=True)
+            except Exception as e:
+                logger.error(f"Failed to refresh smart course context: {e}")
+                return
+            pending = 0
+            for knowledge in ctx.knowledgeList:
+                if (knowledge.studyProgress or 0) >= 100:
+                    continue
+                try:
+                    resources = self.listSmartNodeResources(courseId, classId,
+                                                            knowledge.knowledgeId, shareCourseId)
+                except Exception as e:
+                    logger.error(f"Failed to refresh resources of {knowledge.knowledgeName}: {e}")
+                    continue
+                todo = [r for r in (resources.resourceList or []) if r.studyStatus != 1]
+                if not todo:
+                    continue
+                pending += len(todo)
+                tprint(f"{prefix}__Retry({rnd}) {knowledge.knowledgeName} ({len(todo)} left)"[:w_lim])
+                for resource in todo:
+                    self._checkTimeLimit(cid)
+                    name = ObjDict(resource.resourcesDetail, default=None).resourcesName
+                    tprint(f"{prefix*2}__Fucking {name}"[:w_lim])
+                    try:
+                        self.fuckSmartResource(courseId, classId, knowledge, resource, shareCourseId)
+                    except TimeLimitExceeded:
+                        raise
+                    except Exception as e:
+                        logger.exception(e)
+                        tprint(f"{prefix*2}##Failed: {e}"[:w_lim])
+            if pending == 0:
+                logger.info(f"Smart course sweep round {rnd}: nothing left")
+                break
+
+    def _sweepSmartExams(self, courseId, classId, aiConfig, tprint, prefix, w_lim, maxExamAttempts):
+        """
+        ### 补漏：对掌握度仍然偏低的知识点再补几轮练习
+        （单题题库最高只能是 94，所以用 90 作为补漏阈值，避免无意义重刷）
+        """
+        cid = f"smart_{courseId}_{classId}"
+        try:
+            ctx = self.getSmartCourseContext(courseId, classId, force=True)
+        except Exception as e:
+            logger.error(f"Failed to refresh smart course context: {e}")
+            return
+        for knowledge in ctx.knowledgeList:
+            if knowledge.freeExam not in (0, "0"):
+                continue
+            if (knowledge.masteryPercentage or 0) >= 90:
+                continue
+            self._checkTimeLimit(cid)
+            tprint(f"{prefix}__Retry exam {knowledge.knowledgeName} (mastery {knowledge.masteryPercentage})"[:w_lim])
+            try:
+                self.fuckSmartExam(courseId, classId, knowledge, aiConfig,
+                                   maxAttempts=min(3, maxExamAttempts))
+            except TimeLimitExceeded:
+                raise
+            except Exception as e:
+                logger.exception(e)
+                tprint(f"{prefix}##Exam retry failed: {e}"[:w_lim])
+
     def fuckSmartCourse(self, courseId, classId, tree_view: bool = None, shareCourseId: str = "",
-                        aiConfig: dict = None, no_exam: bool = False, maxExamAttempts: int = 3):
+                        aiConfig: dict = None, no_exam: bool = False,
+                        maxExamAttempts: int = SMART_EXAM_MAX_ATTEMPTS):
         """
         ### 刷完整个智慧课程
         * courseId: 课程 ID
@@ -2105,6 +2314,10 @@ class Fucker:
                                 logger.exception(e)
                                 tprint(f"{prefix*4}##Exam failed: {e}"[:w_lim])
                         tprint(f"{prefix*3}__Fucked knowledge point {knowledge.knowledgeName}"[:w_lim])
+            # 第一遍结束后补漏，保证一次运行尽量跑满
+            self._sweepSmartCourse(courseId, classId, tprint, prefix, w_lim, shareCourseId)
+            if not no_exam:
+                self._sweepSmartExams(courseId, classId, aiConfig, tprint, prefix, w_lim, maxExamAttempts)
         except TimeLimitExceeded as e:
             logger.info(f"Fucking time limit exceeded: {e}")
             self._pushplus("fuckZHS", "刷课已完成")
@@ -2251,11 +2464,16 @@ class ExamCtx:
         return hashlib.md5(plain.encode("utf-8")).hexdigest()
 
     def setAnswer(self, questionId: int, version: int, answer_data: dict):
+        question_dict = answer_data.get("questionDict") or {}
+        options = [{"id": option.get("id"), "content": option.get("content")}
+                   for option in (question_dict.get("optionVos") or [])
+                   if option.get("isCorrect") == 1]
         entry = {
             "version": version,
             "question": answer_data.get("question", ""),
             "answer": answer_data.get("answer", ""),
             "answer_content": answer_data.get("answer_content", ""),
+            "options": options,
             "hash": self.questionHash(answer_data.get("question", "")),
             "questionDict": answer_data.get("questionDict", {})
         }
@@ -2423,39 +2641,32 @@ class ExamCtx:
         questionId = questionDict["id"]
         questionType = questionDict["questionType"]
         version = questionDict.get("version", 1)
-
-        # 尝试从缓存中获取答案
-        answer = self.getAnswer(questionId, version)
-        if answer is not None:
-            cached = str(answer.get("answer", "") or "")
-            # 旧版本给填空客观题缓存的是选项 id，必须忽略，否则永远判错
-            if questionType == 3 and re.fullmatch(r"[0-9#@]+", cached):
-                cached = ""
-            if cached:
-                # 随机睡眠3-5秒，模拟网络延迟
-                time.sleep(randint(3, 5))
-                return cached.split('#@#'), "cached"
-
-        # 同一道题换了个 questionId 时，按题干哈希再找一次
-        content_hash = self.questionHash(questionDict.get("content", ""))
-        for item in self.allAnswerCache.values():
-            cached = str(item.get("answer", "") or "")
-            if item.get("hash") != content_hash or not cached:
-                continue
-            if questionType == 3 and re.fullmatch(r"[0-9#@]+", cached):
-                continue
-            time.sleep(randint(1, 2))
-            return cached.split('#@#'), "cached(hash)"
-
-        # 答案不存在，获取题目内容，使用AI生成答案
-        questionContent = questionDict["content"]
+        questionContent = questionDict.get("content", "")
 
         # 选项，只保留有id和content的选项
         choices = [
             {"id": option["id"], "content": option["content"]}
-            for option in questionDict["optionVos"]
+            for option in (questionDict.get("optionVos") or [])
             if "id" in option and "content" in option
         ]
+
+        # 尝试从缓存中获取答案（会自动做一次版本兼容映射）
+        entry = self.getAnswer(questionId, version)
+        if entry is not None:
+            ids = self.resolveCachedAnswer(entry, choices, questionType)
+            if ids:
+                time.sleep(uniform(0.2, 0.5))
+                return ids, "cached"
+
+        # 同一道题换了个 questionId / 版本时，按题干哈希再找一次
+        content_hash = self.questionHash(questionContent)
+        for item in self.allAnswerCache.values():
+            if item.get("hash") != content_hash:
+                continue
+            ids = self.resolveCachedAnswer(item, choices, questionType)
+            if ids:
+                time.sleep(uniform(0.1, 0.3))
+                return ids, "cached(hash)"
 
         # 填空客观题（自动批阅）：只有拿到答案文本才能交，交选项 id 必判错
         if questionType not in (1, 2, 14):
@@ -2492,9 +2703,40 @@ class ExamCtx:
             # 没有可用的 AI，使用简单启发式，实在不行再随机
             answer = self.heuristicAnswer(questionType, questionContent, choices)
 
-            time.sleep(randint(1, 2))
+            time.sleep(uniform(0.1, 0.3))
 
         return answer, "heuristic"
+
+    @staticmethod
+    def stripHtml(text) -> str:
+        return re.sub(r"<[^>]+>", "", str(text or "")).strip()
+
+    def resolveCachedAnswer(self, entry: dict, choices: list, questionType: int):
+        """
+        ### 把缓存答案映射到当前题目的选项上
+        题库存在多个版本（选项顺序/内容会变），缓存里是旧版本的选项 id，
+        这时按选项内容重新匹配；匹配不上就当作未命中，交给启发式/AI。
+        """
+        cached = str(entry.get("answer", "") or "")
+        if not cached:
+            return None
+        if questionType == 3:
+            return None if re.fullmatch(r"[0-9#@]+", cached) else [cached]
+        ids = [i for i in cached.split('#@#') if i]
+        valid = {str(c["id"]) for c in choices}
+        if ids and all(i in valid for i in ids):
+            return ids
+        options = entry.get("options") or []
+        if not options:
+            return None
+        mapped = []
+        for option in options:
+            text = self.stripHtml(option.get("content", ""))
+            match = next((c for c in choices if self.stripHtml(c["content"]) == text), None)
+            if not match:
+                return None
+            mapped.append(str(match["id"]))
+        return mapped or None
 
     def heuristicAnswer(self, questionType: int, questionContent: str, choices: list) -> list:
         """
