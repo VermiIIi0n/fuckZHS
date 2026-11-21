@@ -56,7 +56,7 @@ SMART_REPORT_INTERVAL = 10  # 智慧课程视频进度上报间隔（秒）
 SMART_DEFAULT_SPEED = 60.0  # 智慧课程视频默认倍速（40x~100x 实测均 100% 被接受，取 60x 留余量）
 SMART_MAX_SPEED = 100.0     # 智慧课程视频倍速上限，再高收益有限且更容易被风控
 SMART_EXAM_MAX_ATTEMPTS = 6  # 知识点练习单次运行最多尝试次数（题库较大时需要多轮才能刷满）
-SMART_EXAM_TARGET = 95       # 掌握度目标，达到后不再练习
+SMART_EXAM_TARGET = 97       # 掌握度目标，达到后不再练习
 SMART_EXAM_BASE = "https://studentexamtest.zhihuishu.com/gateway/t/v1"  # 智慧课程练习/考试网关
 
 
