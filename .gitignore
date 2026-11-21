@@ -139,3 +139,8 @@ dmypy.json
 aiexamAnswer
 AiDownloadCache
 .vscode
+
+.venv312
+.idea/
+*.iml
+*.pyc

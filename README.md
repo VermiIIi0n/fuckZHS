@@ -21,7 +21,7 @@
 
 ### Features
 
-- 支持校内学分课与知到共享学分课
+- 支持校内学分课、知到共享学分课、AI 课程与**智慧课程**（新形态课程）
 - 自动回答弹题
 - 设定时限
 - 射后不管, 无需交互
@@ -169,6 +169,8 @@ python main.py -c 114514 -d --proxy http://127.0.0.1:2333
 python main.py -c 114514 -v 1989 604
 # 刷ai课程，ai课程号为 114514，classId为 4444
 python main.py -ai 114514 4444
+# 刷智慧课程，courseId 与 classId 均可从网址中看到
+python main.py -sc 2118239646076444672 339168
 ```
 
 什么？不知道课程 ID 或视频 ID? 进入课程界面就可以在网址里看到了.  
@@ -219,6 +221,9 @@ python main.py --fetch
 - `--progressbar_view`: 进度条控制，关闭后不显示当前视频进度。
 - `--image_path`: 登录二维码保存路径，留空则不保存。
 - `-ai`, `--aicourse`: AI课程, Input AI Course ID and CLASS ID to fu*k aiCourse
+- `-sc`, `--smartcourse`: 智慧课程(新形态课程), 输入课程 ID 与班级 ID
+- `--share_course_id`: 智慧课程的 shareCourseId, 仅共享课需要
+- `--exam_attempts`: 智慧课程知识点练习的单次运行最大尝试次数, 默认 6
 - `-h` `--help`: 显示帮助
 
 运行示例如下:
@@ -324,6 +329,157 @@ def saveCacheIntervalTime(self, RAC_id, video_id, played_time, last_submit, watc
 
 ---
 
+### 智慧课程 (Smart Course) API
+
+智慧课程（新形态课程，域名 `ai-smart-course-student-pro.zhihuishu.com`）是智慧树新推出的一类课程：
+以“知识图谱 / 知识点”为组织单位，每个知识点下挂着视频、PPT、电子书等资源，学习进度按资源完成度计算。
+
+它的后端与 AI 课程是**同一个网关** (`kg-ai-run.zhihuishu.com/run/gateway/t/stu`)，
+加密方式也一致（AES-CBC + `AI_KEY`），所以直接复用 `zhidaoQuery(..., contentType="json")`。
+
+```Python
+# 课程列表（学生视角）
+def getSmartCourseList(self)...
+# 课程上下文：课程信息 + 主题/子主题/知识点树
+def getSmartCourseContext(self, courseId, classId, force=False)...
+# 知识点下的资源列表（带 studyStatus）
+def listSmartNodeResources(self, courseId, classId, knowledgeId, shareCourseId="")...
+# 资源详情（视频分段 videoSegList 等）
+def getSmartResourceDetail(self, courseId, classId, knowledgeId, resourcesUid, fileId=None)...
+# 视频总长度 / 已观看秒数
+def getSmartVideoTime(self, courseId, classId, videoIds:list)...
+def getSmartKnowledgeVideoTime(self, courseId, classId, knowledgeId)...
+# 学习凭证与进度上报
+def getSmartAccessKey(self, courseId, classId, knowledgeId)...
+def getSmartWatchUId(self, fileId)...
+def reportSmartVideoProcess(self, courseId, classId, fileId, knowledgeId, lastWatchTime, studyTotalTime=10, shareCourseId="", nodeType=0)...
+def saveSmartStudy(self, courseId, classId, knowledgeId, resourcesUid=None, fileId=None, studyTime=None, lastWatchTime=None, studyFileType=1)...
+def completeSmartResource(self, courseId, classId, knowledgeId, resourcesUid, fileId=None)...
+# 课程是否截止 / 知识点测验
+def isSmartCourseEnded(self, courseId, classId)...
+def querySmartExam(self, courseId, classId, knowledgeId)...
+# 刷课
+def fuckSmartVideo(self, courseId, classId, knowledge, resource, shareCourseId="")...
+def fuckSmartResource(self, courseId, classId, knowledge, resource, shareCourseId="")...
+def fuckSmartCourse(self, courseId, classId, tree_view=True, shareCourseId="")...
+```
+
+### 直接跑（无参数）与 -c
+
+`python main.py` 不带参数时会把「知到共享课 + 校内学分课 + 智慧课程」全部刷一遍；
+`-c` 传入智慧课程的 courseId 也能自动识别（会去智慧课程列表里匹配，命中后自动补 classId）：
+
+```bash
+python main.py                                  # 全部课程（含智慧课程）
+python main.py -c 2118239646076444672            # 只刷该智慧课程（自动查 classId）
+python main.py -c 11549306                       # 校内学分课照旧
+python main.py --fetch                           # 清单里也会包含智慧课程
+```
+
+> 智慧课程动辄上百个知识点，建议配合 `-l` 限制单个课程的时长，例如 `python main.py -l 60`。
+
+> 进度条按终端显示宽度计算（中文按 2 列），视频进度用 fileId 作前缀，不会再因为换行而刷屏。
+
+
+命令行用法：
+
+```bash
+python main.py -sc 2118239646076444672 339168        # 课程 ID 与班级 ID 都在网址里
+python main.py -sc 2118239646076444672 339168 -s 60  # 指定倍速（默认 60，上限 100）
+```
+
+实现要点（逆向结论，供未来接口变更时参考）：
+
+- 视频进度靠 `studyRecord/report` + `studyRecord/study` 两条接口，网页端每 10 秒各发一次：
+  - `report`: `{courseId, classId, fileId, studyTotalTime:10, lastWatchTime, knowledgeId, shareCourseId:"", watchUId:1, nodeType:0}`
+  - `study`: `{courseId, classId, knowledgeId, source:1, studyFileType:1, fileId, studyTime:<累计秒>, lastWatchTime}`
+  - `studyTime` 是**累计值**而不是增量；`watchUId` 固定为 `1`，若报
+    `『watchUId』预览文件获取 key不能为空` 就是这个字段缺失或类型不对
+- 非视频资源（PPT / 电子书 / 图片 / 外链等）只需 `studyRecord/completed` 标记完成，
+  再补一条 `studyRecord/study` (`studyFileType: 2`)，无需真正打开文件
+- 视频的完成判定在服务端：观看进度达到视频分段长度约 85% 即 `studyStatus = 1`，
+  之后继续上报会被忽略；`schedule` 字段就是观看百分比
+- 上报节奏实测（同一接口、只上报到分片 40% 以内，避免“已完成”干扰）：
+  10x/15x/20x/30x 全部 100% 累积；40x/50x/60x/70x/80x/90x/100x 也全部 100% 累积；
+  150x、200x 短时同样能累积（视频会在约 85% 分片处被判定完成并停止接收上报）。
+  因此默认倍速取 **60x**（10 分钟视频约 10 秒刷完），上限 **100x**，
+  `-s` 可自行调整，超过 100x 会被自动 clamp
+
+### 知识点练习测试（掌握度）
+
+智慧课程里有部分知识点带“练习测试”（网页上的“去提升”按钮），做完可以提升知识点掌握度。
+这个测试没有可直接查询答案的接口，但**提交之后**接口会返回每道题的正确选项与解析，
+因此工具采用“作答 → 提交 → 回读正确答案 → 再练习”的闭环：
+
+1. `POST /stu/exam/questions-paper` `{scMapId, courseId, classId, knowledgeId}` 取得本次练习的 examTestId / paperId（每次调用会创建一次新练习）
+2. `POST studentexamtest.../exam/user/openExam` `{examTestId, examPaperId, courseId}` 开考（重复调用无副作用；未开考时答题会返回 2039 试卷未打开）
+3. `GET /exam/user/getExamSheetInfo`、`GET /question/getExamQuestionInfo` 取题目与选项
+4. `POST /answer/saveAnswer` `{recruitId, examTestId, examPaperId, questionId, dataVos:null, answer}`（多选用 `#@#` 连接选项 id）
+5. `POST /exam/user/submit` `{examTestId, courseId, courseType:8, examPaperId, aiKnlowledgeId}`
+6. 提交后再读一次题目，可拿到 `userAnswerVo[].isCorrect` 与 `optionVos[].isCorrect`，
+   正确答案会写入 `aiexamAnswer/<courseId>/<examTestId>.json` 缓存
+7. 重复 1-6，直到某次练习全对（掌握度约 97）或达到次数上限（默认 6 次）
+8. 整门课刷完后会再做一次**补漏**：重新拉取课程状态，对仍未完成的资源和掌握度 < 90 的知识点再刷一遍，
+   保证一次运行尽量跑满（视频进度上报存在服务端异步，偶发丢报时需要补）
+
+> **一次运行即满分**：做练习前会先调用 `mastery-statistics/bd/get-test-question` 与
+> `mastery-statistics/get-test-question` 捞题库答案——这两个接口会随机返回题目且带 `isCorrect` 标记，
+> 循环十几次即可把题库答案基本捞全并写入答案缓存，之后第一遍作答通常就是 6/6、掌握度 97。
+> 题库特别大、捞不全时仍会回退到上面的“提交后回读答案”试错路径。
+> 题库存在多版本（同一题不同 version 的选项顺序会变），缓存命中时会按选项内容重新映射到当前版本的选项 id。
+
+> 支持题型：单选（1）、多选（2）、判断（14）、填空客观题（3，直接提交选项文本，提交选项 id 会被判错）；
+> 组合题/主观题等无法自动作答的题目会被跳过，不影响其它题目提交。
+
+题库答案捞全后第一遍即可满分；个别没捞到的题目会用启发式/随机作答，
+提交后回读正确答案补进缓存，下一遍补齐（默认最多 6 次 + 一次补漏）。
+
+实测：
+- 知识点「健康教育学概述」：78% → 97%（6/6）
+- 知识点「健康行为理论」：44% → 97%（首轮 0/6，靠提交后回读答案，第二轮起 5/6、6/6）
+
+#### AI 作答 vs 试错缓存（实测对比）
+
+项目里的 `ai` 配置原本走 `ai-knowledge-map-platform.../qa/platform/stream`，该接口已下线（返回 509），
+现已改为调用新版的 dify 工作流（`kg-dify-proxy.../dify/gateway/t/dify/v1`，taskName `AI研习室-助教回答`，
+SSE 流式，需要课程 `mapUid`/`scMapUid`）。实测结果：
+
+| 方案 | 单题耗时 | 6 题一轮 | 稳定性 | 结果 |
+|---|---|---|---|---|
+| 内置 AI（dify） | 60~120 秒，偶发空返回 | 6~12 分钟 | 依赖线上服务，格式不一定遵循 | 多选题可答对；单选题曾解析失败回退启发式 |
+| 试错缓存（默认） | - | 20~40 秒 | 只依赖考试接口本身 | 2~3 轮稳定到 6/6（掌握度 97） |
+
+结论：默认使用**试错缓存**（更快、更稳定、不依赖 AI 服务）；
+想要“第一次就尽量答对”可以在 `config.json` 里把 `ai.exam_use_ai` 设为 `true`（会明显变慢）。
+
+```json
+"ai": {
+    "enabled": true,
+    "use_zhidao_ai": true,
+    "exam_use_ai": false
+}
+```
+
+
+
+命令行：
+
+```bash
+python main.py -sc 2118239646076444672 339168                 # 资源 + 练习测试
+python main.py -sc 2118239646076444672 339168 --noexam 1      # 只刷资源，不做练习
+python main.py -sc 2118239646076444672 339168 --exam_attempts 6   # 默认 6 次
+```
+
+```Python
+def getSmartExamPaper(self, courseId, classId, knowledgeId)...
+def getSmartExamState(self, examTestId, examPaperId)...
+def getSmartKnowledgeMastery(self, courseId, classId, knowledgeId)...
+def getSmartCourseMapUid(self, courseId)...
+def fuckSmartExam(self, courseId, classId, knowledge, aiConfig=None, maxAttempts=3, targetMastery=95)...
+```
+
+---
+
 ## 结构介绍
 
 ### 文件结构
@@ -381,6 +537,36 @@ class Fucker:
     def _hikeQuery(self, url:str, data:dict,sig:bool=False, ok_code:int=200,
                    setTimeStamp:bool=True, method:str="GET")...
 # end of hike methods
+#############################################
+# following are methods for smart course (智慧课程) API
+# same gateway as AI course: kg-ai-run.zhihuishu.com/run/gateway/t/stu
+#############################################
+    def getSmartCourseList(self)...
+    def getSmartCourseContext(self, courseId, classId, force=False)...
+    def smartQuery(self, path:str, data:dict, ok_code:int=200, method:str="POST")...
+    def listSmartNodeResources(self, courseId, classId, knowledgeId, shareCourseId="")...
+    def getSmartResourceDetail(self, courseId, classId, knowledgeId, resourcesUid, fileId=None)...
+    def getSmartVideoTime(self, courseId, classId, videoIds:list)...
+    def getSmartKnowledgeVideoTime(self, courseId, classId, knowledgeId)...
+    def getSmartAccessKey(self, courseId, classId, knowledgeId)...
+    def getSmartWatchUId(self, fileId)...
+    def reportSmartVideoProcess(self, courseId, classId, fileId, knowledgeId, lastWatchTime, studyTotalTime=10, shareCourseId="", nodeType=0)...
+    def saveSmartStudy(self, courseId, classId, knowledgeId, resourcesUid=None, fileId=None, studyTime=None, lastWatchTime=None, studyFileType=1)...
+    def completeSmartResource(self, courseId, classId, knowledgeId, resourcesUid, fileId=None)...
+    def isSmartCourseEnded(self, courseId, classId)...
+    def querySmartExam(self, courseId, classId, knowledgeId)...
+    def getSmartExamPaper(self, courseId, classId, knowledgeId)...
+    def getSmartExamState(self, examTestId, examPaperId)...
+    def getSmartKnowledgeMastery(self, courseId, classId, knowledgeId)...
+    def getSmartCourseMapUid(self, courseId)...
+    def fuckSmartExam(self, courseId, classId, knowledge, aiConfig=None, maxAttempts=3, targetMastery=95)...
+    @staticmethod
+    def smartResourceKind(resource:dict)...
+    def fuckSmartVideo(self, courseId, classId, knowledge, resource, shareCourseId="")...
+    def fuckSmartResource(self, courseId, classId, knowledge, resource, shareCourseId="")...
+    def fuckSmartCourse(self, courseId, classId, tree_view=None, shareCourseId="")...
+# end of smart course methods
+#######################################
 #######################################
 # shared private methods
     def _watchVideo(self, video_id)... # it's probably unnecessary but let's keep it to fool those idiots
