@@ -1,3 +1,5 @@
+PROMPT_TOKEN_LIMIT = 27_900
+
 from zd_utils import Cipher, getEv, WatchPoint, HOME_KEY, VIDEO_KEY, QA_KEY, AI_KEY, EXAM_KEY
 from utils import progressBar, HMS, wipeLine, list_to_cookie_jar, getRealPath
 from urllib.parse import unquote_plus as unquote
@@ -2179,8 +2181,8 @@ class Openai:
         tokens = self.encoder.encode(prompt)
 
         # 如果大于32ktoken，取后32ktoken
-        if len(tokens) > 27.900 * 1000:
-            tokens = tokens[-27.900 * 1000:]
+        if len(tokens) > PROMPT_TOKEN_LIMIT:
+            tokens = tokens[-PROMPT_TOKEN_LIMIT:]
 
             prompt = self.encoder.decode(tokens)
             logger.warning(
