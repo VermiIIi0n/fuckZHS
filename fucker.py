@@ -33,6 +33,9 @@ import hashlib
 import string
 import tiktoken
 
+# 单次 prompt 的 token 上限：超出只保留尾部，避免把整篇 PPT 顶上去
+PROMPT_TOKEN_LIMIT = 27_900
+
 """
 ⠄⠄⠄⢰⣧⣼⣯⠄⣸⣠⣶⣶⣦⣾⠄⠄⠄⠄⡀⠄⢀⣿⣿⠄⠄⠄⢸⡇⠄⠄
 ⠄⠄⠄⣾⣿⠿⠿⠶⠿⢿⣿⣿⣿⣿⣦⣤⣄⢀⡅⢠⣾⣛⡉⠄⠄⠄⠸⢀⣿⠄
@@ -2178,9 +2181,9 @@ class Openai:
     def generateAnswer(self, prompt: str) -> list:
         tokens = self.encoder.encode(prompt)
 
-        # 如果大于32ktoken，取后32ktoken
-        if len(tokens) > 27.900 * 1000:
-            tokens = tokens[-27.900 * 1000:]
+        # 超过上限就截断到尾部；上限用整数常量，浮点做切片下标会 TypeError
+        if len(tokens) > PROMPT_TOKEN_LIMIT:
+            tokens = tokens[-PROMPT_TOKEN_LIMIT:]
 
             prompt = self.encoder.decode(tokens)
             logger.warning(
